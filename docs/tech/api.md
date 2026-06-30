@@ -1,247 +1,79 @@
-# API Specification
+# API Map
 
 ## Conventions
 
 - Base path: `/api`
 - Format: JSON (request & response)
-- Auth: session cookie (web) или `Authorization: Bearer <api_token>` (API/MCP)
+- Auth: session cookie (web) или `Authorization: Bearer <api_token>` (API/MCP). См. [auth.md](./auth.md).
+- Errors: единый формат. См. [error-handling.md](./error-handling.md).
 - Pagination: cursor-based (`?cursor=xxx&limit=50`)
-- Errors: единый формат `{ "error": { "code": "not_found", "message": "..." } }`
 - Soft delete: DELETE возвращает 204, ресурс помечается deleted_at
 - Timestamps: ISO 8601 (UTC)
-
-## Error Format
-
-```json
-{
-  "error": {
-    "code": "validation",
-    "message": "title is required"
-  }
-}
-```
-
-| HTTP Status | Error Code | When |
-|-------------|-----------|------|
-| 400 | `validation` | Невалидный input |
-| 401 | `unauthorized` | Нет сессии/токена |
-| 403 | `forbidden` | Нет прав |
-| 404 | `not_found` | Ресурс не найден |
-| 409 | `already_exists` | Дубликат (slug, email) |
-| 500 | `internal` | Внутренняя ошибка |
 
 ## Pagination
 
 Cursor-based для стабильной пагинации при изменении данных.
 
-**Request:**
 ```
 GET /api/issues?limit=50&cursor=eyJpZCI6Inh4eCJ9
 ```
 
-**Response:**
-```json
-{
-  "data": [...],
-  "pagination": {
-    "next_cursor": "eyJpZCI6Inl5eSJ9",
-    "has_more": true
-  }
-}
-```
+Response содержит `pagination: { next_cursor, has_more }`.
 
 ---
 
 ## Auth
 
-### POST /api/auth/register
-
-Регистрация + создание workspace.
-
-**Request:**
-```json
-{
-  "email": "user@example.com",
-  "password": "securepass123",
-  "name": "John Doe",
-  "workspace_name": "Acme Inc",
-  "workspace_slug": "acme"
-}
-```
-
-**Response (201):**
-```json
-{
-  "user": { "id": "uuid", "email": "...", "name": "..." },
-  "workspace": { "id": "uuid", "name": "...", "slug": "acme" }
-}
-```
-
-Set-Cookie: session_id (httpOnly, secure).
-
-### POST /api/auth/login
-
-**Request:**
-```json
-{
-  "email": "user@example.com",
-  "password": "securepass123"
-}
-```
-
-**Response (200):**
-```json
-{
-  "user": { "id": "uuid", "email": "...", "name": "..." }
-}
-```
-
-### POST /api/auth/logout
-
-**Response (204):** No content. Cookie cleared.
-
-### POST /api/auth/invite
-
-Приглашение пользователя в workspace (Owner/Admin only).
-
-**Request:**
-```json
-{
-  "email": "newuser@example.com",
-  "role": "member"
-}
-```
-
-**Response (201):**
-```json
-{
-  "invite": { "id": "uuid", "email": "...", "role": "member", "expires_at": "..." }
-}
-```
+| Method | Path | Description | Access |
+|--------|------|-------------|--------|
+| POST | `/api/auth/register` | Регистрация + создание workspace | Public |
+| POST | `/api/auth/login` | Логин, получение session cookie | Public |
+| POST | `/api/auth/logout` | Logout, удаление сессии | Authenticated |
+| POST | `/api/auth/invite` | Приглашение в workspace | Owner/Admin |
 
 ---
 
 ## Workspace
 
-### GET /api/workspace
-
-Текущий workspace (определяется из сессии).
-
-**Response (200):**
-```json
-{
-  "id": "uuid",
-  "name": "Acme Inc",
-  "slug": "acme",
-  "created_at": "2026-01-01T00:00:00Z"
-}
-```
-
-### PATCH /api/workspace
-
-**Request:**
-```json
-{
-  "name": "New Name"
-}
-```
-
-### GET /api/workspace/members
-
-**Response (200):**
-```json
-{
-  "data": [
-    { "id": "uuid", "email": "...", "name": "...", "role": "owner" }
-  ]
-}
-```
-
-### DELETE /api/workspace/members/:userID
-
-Удалить участника из workspace (Owner/Admin).
+| Method | Path | Description | Access |
+|--------|------|-------------|--------|
+| GET | `/api/workspace` | Текущий workspace | Member |
+| PATCH | `/api/workspace` | Обновление настроек | Owner/Admin |
+| GET | `/api/workspace/members` | Список участников | Member |
+| DELETE | `/api/workspace/members/:userID` | Удалить участника | Owner/Admin |
 
 ---
 
 ## Teams
 
-### GET /api/teams
-
-**Response (200):**
-```json
-{
-  "data": [
-    { "id": "uuid", "name": "Engineering", "key": "ENG", "member_count": 5 }
-  ]
-}
-```
-
-### POST /api/teams
-
-**Request:**
-```json
-{
-  "name": "Engineering",
-  "key": "ENG"
-}
-```
-
-**Response (201):** Team object. Дефолтные статусы (по одному на группу) создаются автоматически.
-
-### GET /api/teams/:teamID
-
-### PATCH /api/teams/:teamID
-
-### GET /api/teams/:teamID/members
-
-### POST /api/teams/:teamID/members
-
-**Request:**
-```json
-{
-  "user_id": "uuid"
-}
-```
-
-### DELETE /api/teams/:teamID/members/:userID
-
-### GET /api/teams/:teamID/statuses
-
-**Response (200):**
-```json
-{
-  "data": [
-    { "id": "uuid", "name": "Backlog", "group": "backlog", "position": 0 },
-    { "id": "uuid", "name": "In Progress", "group": "in_progress", "position": 0 },
-    { "id": "uuid", "name": "Code Review", "group": "in_progress", "position": 1 }
-  ]
-}
-```
-
-### POST /api/teams/:teamID/statuses
-
-**Request:**
-```json
-{
-  "name": "Code Review",
-  "group": "in_progress",
-  "position": 1
-}
-```
-
-### PATCH /api/teams/:teamID/statuses/:statusID
-
-### DELETE /api/teams/:teamID/statuses/:statusID
-
-Нельзя удалить дефолтный статус группы.
+| Method | Path | Description | Access |
+|--------|------|-------------|--------|
+| GET | `/api/teams` | Список команд workspace | Member |
+| POST | `/api/teams` | Создать команду (+ дефолтные статусы) | Member |
+| GET | `/api/teams/:teamID` | Детали команды | Member |
+| PATCH | `/api/teams/:teamID` | Обновить команду | Team member |
+| GET | `/api/teams/:teamID/members` | Участники команды | Member |
+| POST | `/api/teams/:teamID/members` | Добавить участника | Team member |
+| DELETE | `/api/teams/:teamID/members/:userID` | Удалить участника | Team member |
+| GET | `/api/teams/:teamID/statuses` | Статусы команды | Member |
+| POST | `/api/teams/:teamID/statuses` | Создать статус | Team member |
+| PATCH | `/api/teams/:teamID/statuses/:statusID` | Обновить статус | Team member |
+| DELETE | `/api/teams/:teamID/statuses/:statusID` | Удалить статус (не дефолтный) | Team member |
 
 ---
 
 ## Issues
 
-### GET /api/issues
+| Method | Path | Description | Access |
+|--------|------|-------------|--------|
+| GET | `/api/issues` | Список задач (фильтры, поиск, пагинация) | Member |
+| POST | `/api/issues` | Создать задачу | Team member |
+| GET | `/api/issues/:issueID` | Детали задачи (UUID или identifier) | Member |
+| PATCH | `/api/issues/:issueID` | Обновить задачу (partial) | Team member |
+| DELETE | `/api/issues/:issueID` | Удалить задачу | Team member |
 
-**Query params:**
+**Фильтры GET /api/issues:**
+
 | Param | Type | Notes |
 |-------|------|-------|
 | team | string | team ID or key (ENG) |
@@ -254,222 +86,72 @@ Set-Cookie: session_id (httpOnly, secure).
 | q | string | full-text search (title + description) |
 | sort | string | created_at, updated_at, priority (default: updated_at) |
 | order | string | asc, desc (default: desc) |
-| cursor | string | pagination cursor |
-| limit | int | 1-100, default 50 |
-
-**Response (200):**
-```json
-{
-  "data": [
-    {
-      "id": "uuid",
-      "identifier": "ENG-123",
-      "title": "Fix login bug",
-      "description": "...",
-      "status": { "id": "uuid", "name": "In Progress", "group": "in_progress" },
-      "priority": "high",
-      "assignee": { "id": "uuid", "name": "John", "email": "..." },
-      "project": { "id": "uuid", "name": "Auth Rewrite" },
-      "labels": [{ "id": "uuid", "name": "bug", "color": "#ff0000" }],
-      "created_at": "...",
-      "updated_at": "..."
-    }
-  ],
-  "pagination": { "next_cursor": "...", "has_more": true }
-}
-```
-
-### POST /api/issues
-
-**Request:**
-```json
-{
-  "title": "Fix login bug",
-  "description": "Users can't login with email",
-  "team_id": "uuid",
-  "status_id": "uuid",
-  "priority": "high",
-  "assignee_id": "uuid",
-  "project_id": "uuid",
-  "label_ids": ["uuid", "uuid"]
-}
-```
-
-Required: `title`, `team_id`. Остальное опционально (status defaults to first backlog status).
-
-**Response (201):** Full issue object.
-
-### GET /api/issues/:issueID
-
-`:issueID` — UUID или identifier (`ENG-123`).
-
-### PATCH /api/issues/:issueID
-
-Partial update — только переданные поля обновляются.
-
-**Request:**
-```json
-{
-  "status_id": "uuid",
-  "priority": "medium"
-}
-```
-
-### DELETE /api/issues/:issueID
-
-**Response (204).**
 
 ---
 
 ## Projects
 
-### GET /api/projects
-
-**Query params:** `status`, `q`, `cursor`, `limit`.
-
-### POST /api/projects
-
-**Request:**
-```json
-{
-  "name": "Auth Rewrite",
-  "description": "...",
-  "status": "planned"
-}
-```
-
-### GET /api/projects/:projectID
-
-### PATCH /api/projects/:projectID
-
-### DELETE /api/projects/:projectID
+| Method | Path | Description | Access |
+|--------|------|-------------|--------|
+| GET | `/api/projects` | Список проектов | Member |
+| POST | `/api/projects` | Создать проект | Member |
+| GET | `/api/projects/:projectID` | Детали проекта | Member |
+| PATCH | `/api/projects/:projectID` | Обновить проект | Member |
+| DELETE | `/api/projects/:projectID` | Удалить проект | Owner/Admin |
 
 ---
 
 ## Labels
 
-### GET /api/labels
-
-Возвращает workspace-level + team-level labels.
-
-**Query params:** `team` (filter by team; без фильтра — все).
-
-**Response (200):**
-```json
-{
-  "data": [
-    { "id": "uuid", "name": "bug", "color": "#ff0000", "team_id": null },
-    { "id": "uuid", "name": "frontend", "color": "#00ff00", "team_id": "uuid" }
-  ]
-}
-```
-
-### POST /api/labels
-
-**Request:**
-```json
-{
-  "name": "bug",
-  "color": "#ff0000",
-  "team_id": null
-}
-```
-
-`team_id: null` → workspace-level. `team_id: "uuid"` → team-level.
-
-### DELETE /api/labels/:labelID
+| Method | Path | Description | Access |
+|--------|------|-------------|--------|
+| GET | `/api/labels` | Все labels (workspace + team level) | Member |
+| POST | `/api/labels` | Создать label (team_id=null → workspace) | Member |
+| DELETE | `/api/labels/:labelID` | Удалить label | Member |
 
 ---
 
 ## Integrations
 
-### GET /api/integrations/gitlab
-
-**Response (200):**
-```json
-{
-  "configured": true,
-  "gitlab_url": "https://gitlab.example.com",
-  "webhook_url": "https://webhooks.myapp.com/webhooks/gitlab/uuid-secret"
-}
-```
-
-### POST /api/integrations/gitlab
-
-**Request:**
-```json
-{
-  "gitlab_url": "https://gitlab.example.com",
-  "access_token": "glpat-xxx"
-}
-```
-
-Генерирует webhook URL и secret. Response включает webhook_url для настройки в GitLab.
-
-### DELETE /api/integrations/gitlab
+| Method | Path | Description | Access |
+|--------|------|-------------|--------|
+| GET | `/api/integrations/gitlab` | Статус GitLab-интеграции | Member |
+| POST | `/api/integrations/gitlab` | Настроить GitLab (URL + token) | Owner/Admin |
+| DELETE | `/api/integrations/gitlab` | Удалить интеграцию | Owner/Admin |
 
 ---
 
 ## API Tokens
 
-### GET /api/tokens
-
-**Response (200):**
-```json
-{
-  "data": [
-    { "id": "uuid", "name": "Cursor Agent", "last_used_at": "...", "created_at": "..." }
-  ]
-}
-```
-
-### POST /api/tokens
-
-**Request:**
-```json
-{
-  "name": "Cursor Agent"
-}
-```
-
-**Response (201):**
-```json
-{
-  "id": "uuid",
-  "name": "Cursor Agent",
-  "token": "tk_live_xxxxxxxxxxxxx"
-}
-```
-
-`token` показывается **только один раз** при создании.
-
-### DELETE /api/tokens/:tokenID
+| Method | Path | Description | Access |
+|--------|------|-------------|--------|
+| GET | `/api/tokens` | Список токенов текущего пользователя | Authenticated |
+| POST | `/api/tokens` | Создать токен (raw показывается один раз) | Authenticated |
+| DELETE | `/api/tokens/:tokenID` | Отозвать токен | Authenticated |
 
 ---
 
 ## MCP Tools
 
-MCP endpoint: `/mcp` (HTTP Streamable). Auth: `Authorization: Bearer <api_token>`.
+Endpoint: `/mcp` (HTTP Streamable). Auth: `Authorization: Bearer <api_token>`.
 
-Tools — обёртки над REST API:
-
-| Tool | Maps to |
-|------|---------|
-| `create_issue` | POST /api/issues |
-| `get_issue` | GET /api/issues/:id |
-| `update_issue` | PATCH /api/issues/:id |
-| `delete_issue` | DELETE /api/issues/:id |
-| `search_issues` | GET /api/issues (with filters) |
-| `list_projects` | GET /api/projects |
-| `list_teams` | GET /api/teams |
+| Tool | Maps to | Description |
+|------|---------|-------------|
+| `create_issue` | POST /api/issues | Создать задачу |
+| `get_issue` | GET /api/issues/:id | Получить задачу |
+| `update_issue` | PATCH /api/issues/:id | Обновить задачу |
+| `delete_issue` | DELETE /api/issues/:id | Удалить задачу |
+| `search_issues` | GET /api/issues | Поиск с фильтрами |
+| `list_projects` | GET /api/projects | Список проектов |
+| `list_teams` | GET /api/teams | Список команд |
 
 ---
 
 ## Webhooks
 
-### POST /webhooks/gitlab
-
-Входящие события от GitLab. Auth: `X-Gitlab-Token` header с secret.
+| Method | Path | Description | Auth |
+|--------|------|-------------|------|
+| POST | `/webhooks/gitlab` | Входящие события GitLab | X-Gitlab-Token |
 
 Обрабатываемые события:
 - `merge_request` (open, merge, close) — автостатус задачи

@@ -62,8 +62,10 @@
 │   └── config.go           — парсинг конфигурации (env vars)
 ├── internal/
 │   ├── app/                — bootstrap: DI, инициализация, запуск сервера
-│   ├── handler/            — REST API handlers (/api/*)
+│   ├── handler/            — REST API handlers (/api/*), директории по сущности
 │   │   ├── auth/           — login, register, logout, invite
+│   │   │   ├── handler.go  — routes + handler methods
+│   │   │   └── dto.go      — request/response structs, маппинг
 │   │   ├── workspace/      — workspace settings, members
 │   │   ├── team/           — teams, team members, statuses
 │   │   ├── issue/          — CRUD, list, filter
@@ -80,17 +82,24 @@
 │   ├── mcp/                — MCP server (/mcp)
 │   │   ├── server.go       — регистрация tools, endpoint
 │   │   └── tools.go        — определение tools (обёртки над service)
-│   ├── service/            — бизнес-логика
-│   │   ├── issue.go
+│   ├── service/            — бизнес-логика (flat-пакет, растёт файлами)
+│   │   ├── issue.go        — IssueService struct + Create, Update, Delete
+│   │   ├── issue_queries.go — List, GetByID, фильтры (когда вырастет)
 │   │   ├── team.go
 │   │   ├── auth.go
 │   │   └── gitlab.go
-│   ├── repository/         — SQL-запросы (sqlx)
-│   │   ├── issue.go
+│   ├── repository/         — SQL-запросы, sqlx (flat-пакет, растёт файлами)
+│   │   ├── issue.go        — IssueRepo struct + write-операции
+│   │   ├── issue_read.go   — List с JOIN, фильтры (когда вырастет)
 │   │   ├── team.go
 │   │   ├── user.go
 │   │   └── session.go
-│   ├── model/              — доменные структуры
+│   ├── model/              — доменные структуры (flat-пакет, файлы по сущностям)
+│   │   ├── issue.go        — Issue (write) + IssueDetails (read/JOIN)
+│   │   ├── team.go         — Team, TeamMember
+│   │   ├── user.go         — User
+│   │   ├── status.go       — Status
+│   │   └── workspace.go    — Workspace, WorkspaceMember
 │   └── errs/               — доменные ошибки, коды, маппинг
 ├── migrations/             — SQL-миграции (golang-migrate)
 ├── docs/
@@ -111,6 +120,21 @@
 ├── Makefile
 └── go.mod
 ```
+
+### Принципы организации пакетов
+
+**handler/** — директории по сущности. Каждая содержит handler (routes + методы), dto (request/response structs + маппер-функции), swaggo-аннотации. Handler — самый "толстый" слой по объёму кода (DTO, валидация, аннотации).
+
+**service/** и **repository/** — flat-пакеты. Один пакет, файлы по сущностям. При росте файл разбивается на несколько (`issue.go` → `issue.go` + `issue_queries.go`), пакет остаётся один. Внешний код не меняется.
+
+**model/** — flat-пакет, единый "словарь" домена. Содержит:
+- Write-модели (`Issue`, `Team`) — 1:1 с таблицей, `db:""` теги для sqlx, **без `json:""` тегов**.
+- Read-модели (`IssueDetails`, `TeamWithMembers`) — результаты JOIN-запросов, тоже с `db:""` тегами.
+- Model shared между service и repository — маппинга между слоями нет.
+
+**Маппинг существует только на границе HTTP** (в handler):
+- Request DTO → `model.Issue` (при вызове service)
+- `model.Issue` / `model.IssueDetails` → Response DTO (при формировании ответа)
 
 ## Components
 
@@ -165,28 +189,17 @@
 - Хранит: пользователей, workspace, команды, задачи, сессии, API tokens, GitLab-интеграцию.
 - Миграции через golang-migrate, встроены в бинарник, применяются при старте.
 
+## Error Handling
+
+→ См. [error-handling.md](./error-handling.md)
+
+Кратко: двухуровневая система — доменные `AppError` в service layer, маппинг в HTTP/MCP на уровне транспорта.
+
 ## Authentication & Authorization
 
-### Web (Browser)
+→ См. [auth.md](./auth.md)
 
-```
-Browser → POST /api/auth/login {email, password}
-       ← Set-Cookie: session_id=xxx (httpOnly, secure, sameSite)
-
-Browser → GET /api/issues (Cookie: session_id=xxx)
-       → Middleware: lookup session in PostgreSQL → set user in context
-```
-
-Сессии хранятся в PostgreSQL. Cookie — httpOnly, secure, SameSite=Lax.
-
-### API / MCP (AI Agents)
-
-```
-Agent → POST /mcp (Header: Authorization: Bearer <api_token>)
-     → Middleware: lookup token in PostgreSQL → set user in context
-```
-
-API tokens — длинные случайные строки, привязаны к пользователю. Создаются в UI.
+Кратко: server-side sessions (cookie) для web, API tokens (Bearer header) для MCP/API. Авторизация — в service layer.
 
 ## Request Flow (Example: Create Issue)
 
