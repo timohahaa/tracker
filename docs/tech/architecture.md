@@ -130,11 +130,18 @@
 **model/** — flat-пакет, единый "словарь" домена. Содержит:
 - Write-модели (`Issue`, `Team`) — 1:1 с таблицей, `db:""` теги для sqlx, **без `json:""` тегов**.
 - Read-модели (`IssueDetails`, `TeamWithMembers`) — результаты JOIN-запросов, тоже с `db:""` тегами.
+- Filter-структуры (`IssueFilter`, `ProjectFilter`) — shared между service и repository (живут в model/ чтобы не ломать импорты между слоями).
 - Model shared между service и repository — маппинга между слоями нет.
 
 **Маппинг существует только на границе HTTP** (в handler):
 - Request DTO → `model.Issue` (при вызове service)
 - `model.Issue` / `model.IssueDetails` → Response DTO (при формировании ответа)
+
+**Пагинация (cursor):**
+- Cursor encode/decode — `internal/handler/pagination.go` (shared между handler-пакетами).
+- Handler парсит query params → декодирует cursor → передаёт в service сырые значения (sort value + id).
+- Repository принимает decoded cursor values + filter, строит SQL (keyset WHERE).
+- Handler кодирует next_cursor из последнего элемента результата.
 
 ## Components
 

@@ -12,13 +12,38 @@
 
 ## Pagination
 
-Cursor-based для стабильной пагинации при изменении данных.
+Cursor-based (keyset pagination) для стабильной пагинации при live-данных (нет дубликатов/пропусков при обновлениях, стабильная производительность на любой глубине).
 
+**Принципы:**
+- Одно поле сортировки + `id` как tiebreaker (аналогично Linear)
+- Cursor = base64-encoded JSON с sort value + id
+- Смена sort или фильтров → cursor сбрасывается (фронт запрашивает первую страницу)
+- Jump to page N не поддерживается (infinite scroll / "Load more")
+
+**Request:**
 ```
-GET /api/issues?limit=50&cursor=eyJpZCI6Inh4eCJ9
+GET /api/issues?limit=50&sort=updated_at&order=desc&cursor=eyJ2IjoiMjAyNi0wMS0xNVQxMDowMDowMFoiLCJpZCI6ImFiYy0xMjMifQ==
 ```
 
-Response содержит `pagination: { next_cursor, has_more }`.
+**Response:**
+```json
+{
+  "data": [...],
+  "pagination": {
+    "next_cursor": "eyJ2IjoiMjAyNi0wMS0xMFQwODowMDowMFoiLCJpZCI6ImRlZi00NTYifQ==",
+    "has_more": true
+  }
+}
+```
+
+**SQL (внутри repository):**
+```sql
+SELECT * FROM issues
+WHERE team_id = $1                              -- фильтры
+  AND (updated_at, id) < ($cursor_val, $cursor_id)  -- cursor
+ORDER BY updated_at DESC, id DESC
+LIMIT 50
+```
 
 ---
 
