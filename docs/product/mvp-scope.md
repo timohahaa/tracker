@@ -89,6 +89,12 @@ Issue всегда принадлежит одной команде. Опцио�
 | Другие git-хостинги (GitHub, GitFlic) | GitLab — первый, остальные по аналогии | Post-MVP |
 | OAuth / SSO | Email + пароль достаточно для старта | Post-MVP |
 | Billing / payments | Free tier хватит для MVP | Post-MVP |
+| AI: daily digest | Автосаммари за день (что сделано, что в работе, блокеры) — per user, per team | Post-MVP |
+| AI: project digest | Автоотчет по проекту (прогресс, риски, что осталось) | Post-MVP |
+| AI: workspace digest | Общая сводка по всей команде / всем командам / всем проектам | Post-MVP |
+| AI: triage | Автоклассификация входящих задач (приоритет, команда) | Post-MVP |
+| AI: sprint planning | AI предлагает состав спринта на основе приоритетов и velocity | Post-MVP |
+| AI: проработка задач | Чат с AI для уточнения, декомпозиции задачи | Post-MVP |
 
 ## Known Limitations
 
