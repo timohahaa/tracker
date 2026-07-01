@@ -8,7 +8,9 @@
 
 ### Timestamps
 - Все таблицы: `created_at`, `updated_at`, `deleted_at` (uniform soft delete).
+- Исключения: `sessions` (нет `updated_at`/`deleted_at` — сессии истекают по `expires_at`, logout = hard delete).
 - Junction-таблицы тоже имеют `deleted_at` — разрыв связи = soft delete.
+- Junction-таблицы используют composite PK + upsert-паттерн: удаление = `UPDATE SET deleted_at = now()`, восстановление = `UPDATE SET deleted_at = NULL` (+ обновление полей вроде `role`). INSERT только при первом добавлении, далее — upsert. История удалений/восстановлений не сохраняется (при необходимости — через activity log).
 
 ### Soft Delete
 - Hard delete не используется нигде — все операции удаления через `UPDATE SET deleted_at = now()`.
@@ -25,11 +27,11 @@
 | workspaces | slug | Пересоздание workspace с тем же slug |
 | workspace_members | (workspace_id, username) | Переиспользование @handle после удаления участника |
 | teams | (workspace_id, key) | Удалил команду ENG, создал новую |
-| labels | (workspace_id, name) | Удалил label, создал с тем же именем |
+| labels | (workspace_id, name) WHERE team_id IS NULL | Workspace-level labels уникальны по имени |
+| labels | (team_id, name) WHERE team_id IS NOT NULL | Team-level labels уникальны внутри команды |
 | integrations | (workspace_id, provider) | Переподключение интеграции |
+| issues | (team_id, issue_number) | Уникальность identifier внутри команды |
 | attachments | (url, issue_id) | Пересоздание привязки |
-| api_tokens | token_hash | Уникальность среди активных токенов |
-| invites | token | Уникальность среди активных инвайтов |
 
 ### Multi-workspace
 - User может быть в нескольких workspaces.
@@ -83,6 +85,7 @@
 | id | uuid v7 | PK |
 | workspace_id | uuid | FK → workspaces, NOT NULL |
 | name | text | NOT NULL |
+| description | text | nullable |
 | key | text | UNIQUE per workspace (e.g. "ENG"), используется в identifier |
 | next_issue_number | int | NOT NULL, DEFAULT 1, атомарный инкремент |
 | created_at | timestamptz | NOT NULL |
@@ -125,10 +128,12 @@ Constraint ">=1 статус на группу" — service layer: провер�
 | team_id | uuid | FK → teams, NOT NULL |
 | project_id | uuid | FK → projects, nullable |
 | status_id | uuid | FK → statuses, NOT NULL |
+| creator_id | uuid | FK → users, nullable. NULL если создано интеграцией/системой. Post-MVP: bot_actor для non-human creators |
 | assignee_id | uuid | FK → users, nullable |
 | title | text | NOT NULL |
 | description | text | nullable, markdown |
-| priority | int | NOT NULL, DEFAULT 0. 0=none, 1=urgent, 2=high, 3=medium, 4=low |
+| priority | text | NOT NULL, DEFAULT 'none', CHECK (none / urgent / high / medium / low). Сортировка: CASE WHEN в SQL |
+| due_date | date | nullable |
 | issue_number | int | NOT NULL, per-team sequential |
 | created_at | timestamptz | NOT NULL |
 | updated_at | timestamptz | NOT NULL |
@@ -144,6 +149,7 @@ Lookup: `JOIN teams ON ... WHERE teams.key = $1 AND issues.issue_number = $2`.
 |--------|------|-------|
 | id | uuid v7 | PK |
 | workspace_id | uuid | FK → workspaces, NOT NULL |
+| lead_id | uuid | FK → users, nullable |
 | name | text | NOT NULL |
 | description | text | nullable |
 | status | text | planned / in_progress / completed / canceled |
@@ -160,13 +166,17 @@ Project ↔ Team relationship: junction table `project_teams` (см. ниже). 
 | id | uuid v7 | PK |
 | workspace_id | uuid | FK → workspaces, NOT NULL |
 | team_id | uuid | FK → teams, nullable (NULL = workspace-level) |
-| name | text | UNIQUE per workspace (независимо от team scope) |
+| name | text | NOT NULL |
 | color | text | NOT NULL, hex string (e.g. '#3B82F6'), валидация формата в service |
 | created_at | timestamptz | NOT NULL |
 | updated_at | timestamptz | NOT NULL |
 | deleted_at | timestamptz | nullable |
 
-Promotion: если workspace-level label с таким именем уже есть как team-level, предложить "promote" (убрать team_id). Наоборот (workspace → team) нельзя.
+Uniqueness:
+- Workspace-level: `UNIQUE(workspace_id, name) WHERE team_id IS NULL AND deleted_at IS NULL`
+- Team-level: `UNIQUE(team_id, name) WHERE team_id IS NOT NULL AND deleted_at IS NULL`
+- Разные команды могут иметь label с одинаковым именем.
+- Пересечение workspace ↔ team (нельзя создать team label "Bug" если есть workspace "Bug" и наоборот) — проверка в service layer.
 
 ### issue_labels
 
@@ -190,13 +200,13 @@ Promotion: если workspace-level label с таким именем уже ес
 
 | Column | Type | Notes |
 |--------|------|-------|
-| id | uuid v7 | PK |
+| id | uuid v7 | PK, он же Bearer token (передаётся в `Authorization` header) |
 | user_id | uuid | FK → users, NOT NULL |
 | workspace_id | uuid | FK → workspaces, NOT NULL |
-| token_hash | text | UNIQUE, NOT NULL |
 | name | text | NOT NULL, user-given name |
 | last_used_at | timestamptz | nullable |
 | created_at | timestamptz | NOT NULL |
+| deleted_at | timestamptz | nullable, отзыв токена |
 
 ### invites
 
@@ -211,6 +221,7 @@ Promotion: если workspace-level label с таким именем уже ес
 | expires_at | timestamptz | NOT NULL |
 | accepted_at | timestamptz | nullable |
 | created_at | timestamptz | NOT NULL |
+| deleted_at | timestamptz | nullable, отмена инвайта |
 
 ### project_teams
 
@@ -283,7 +294,7 @@ Post-MVP: tsvector + GIN index (русский + английский слова
 
 ## Webhook Flow (GitLab)
 
-1. GitLab POST → verify webhook_secret из `integrations.credentials` → find integration row
+1. GitLab POST `/webhooks/gitlab/{integrationID}` → find integration by ID → verify `X-Gitlab-Token` against `integrations.credentials.webhook_secret`
 2. Parse event → extract issue identifiers (`TEAM-123`) из branch/title/description
 3. Upsert attachment: `INSERT ... ON CONFLICT (url, issue_id) DO UPDATE SET title=$x, metadata=$y, updated_at=now()`
 4. Linkback: access_token из `integrations.credentials` → комментарий в GitLab MR

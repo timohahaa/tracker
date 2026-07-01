@@ -2,7 +2,7 @@
 
 ## Conventions
 
-- Base path: `/api`
+- Base path: `/api/{workspaceID}` — workspace UUID в path (кроме `/api/auth/*`)
 - Format: JSON (request & response)
 - Auth: session cookie (web) или `Authorization: Bearer <api_token>` (API/MCP). См. [auth.md](./auth.md).
 - Errors: единый формат. См. [error-handling.md](./error-handling.md).
@@ -22,7 +22,7 @@ Cursor-based (keyset pagination) для стабильной пагинации 
 
 **Request:**
 ```
-GET /api/issues?limit=50&sort=updated_at&order=desc&cursor=eyJ2IjoiMjAyNi0wMS0xNVQxMDowMDowMFoiLCJpZCI6ImFiYy0xMjMifQ==
+GET /api/{workspaceID}/issues?limit=50&sort=updated_at&order=desc&cursor=eyJ2IjoiMjAyNi0wMS0xNVQxMDowMDowMFoiLCJpZCI6ImFiYy0xMjMifQ==
 ```
 
 **Response:**
@@ -49,6 +49,8 @@ LIMIT 50
 
 ## Auth
 
+Без workspace prefix — пользователь ещё не выбрал workspace.
+
 | Method | Path | Description | Access |
 |--------|------|-------------|--------|
 | POST | `/api/auth/register` | Регистрация + создание workspace | Public |
@@ -62,10 +64,10 @@ LIMIT 50
 
 | Method | Path | Description | Access |
 |--------|------|-------------|--------|
-| GET | `/api/workspace` | Текущий workspace | Member |
-| PATCH | `/api/workspace` | Обновление настроек | Owner/Admin |
-| GET | `/api/workspace/members` | Список участников | Member |
-| DELETE | `/api/workspace/members/:userID` | Удалить участника | Owner/Admin |
+| GET | `/api/{workspaceID}` | Текущий workspace | Member |
+| PATCH | `/api/{workspaceID}` | Обновление настроек | Owner/Admin |
+| GET | `/api/{workspaceID}/members` | Список участников | Member |
+| DELETE | `/api/{workspaceID}/members/:userID` | Удалить участника | Owner/Admin |
 
 ---
 
@@ -73,17 +75,17 @@ LIMIT 50
 
 | Method | Path | Description | Access |
 |--------|------|-------------|--------|
-| GET | `/api/teams` | Список команд workspace | Member |
-| POST | `/api/teams` | Создать команду (+ дефолтные статусы) | Member |
-| GET | `/api/teams/:teamID` | Детали команды | Member |
-| PATCH | `/api/teams/:teamID` | Обновить команду | Team member |
-| GET | `/api/teams/:teamID/members` | Участники команды | Member |
-| POST | `/api/teams/:teamID/members` | Добавить участника | Team member |
-| DELETE | `/api/teams/:teamID/members/:userID` | Удалить участника | Team member |
-| GET | `/api/teams/:teamID/statuses` | Статусы команды | Member |
-| POST | `/api/teams/:teamID/statuses` | Создать статус | Team member |
-| PATCH | `/api/teams/:teamID/statuses/:statusID` | Обновить статус | Team member |
-| DELETE | `/api/teams/:teamID/statuses/:statusID` | Удалить статус (не дефолтный) | Team member |
+| GET | `/api/{workspaceID}/teams` | Список команд workspace | Member |
+| POST | `/api/{workspaceID}/teams` | Создать команду (+ дефолтные статусы) | Member |
+| GET | `/api/{workspaceID}/teams/:teamID` | Детали команды | Member |
+| PATCH | `/api/{workspaceID}/teams/:teamID` | Обновить команду | Team member |
+| GET | `/api/{workspaceID}/teams/:teamID/members` | Участники команды | Member |
+| POST | `/api/{workspaceID}/teams/:teamID/members` | Добавить участника | Team member |
+| DELETE | `/api/{workspaceID}/teams/:teamID/members/:userID` | Удалить участника | Team member |
+| GET | `/api/{workspaceID}/teams/:teamID/statuses` | Статусы команды | Member |
+| POST | `/api/{workspaceID}/teams/:teamID/statuses` | Создать статус | Team member |
+| PATCH | `/api/{workspaceID}/teams/:teamID/statuses/:statusID` | Обновить статус | Team member |
+| DELETE | `/api/{workspaceID}/teams/:teamID/statuses/:statusID` | Удалить статус (не дефолтный) | Team member |
 
 ---
 
@@ -91,13 +93,13 @@ LIMIT 50
 
 | Method | Path | Description | Access |
 |--------|------|-------------|--------|
-| GET | `/api/issues` | Список задач (фильтры, поиск, пагинация) | Member |
-| POST | `/api/issues` | Создать задачу | Team member |
-| GET | `/api/issues/:issueID` | Детали задачи (UUID или identifier) | Member |
-| PATCH | `/api/issues/:issueID` | Обновить задачу (partial) | Team member |
-| DELETE | `/api/issues/:issueID` | Удалить задачу | Team member |
+| GET | `/api/{workspaceID}/issues` | Список задач (фильтры, поиск, пагинация) | Member |
+| POST | `/api/{workspaceID}/issues` | Создать задачу | Team member |
+| GET | `/api/{workspaceID}/issues/:issueID` | Детали задачи (UUID или identifier) | Member |
+| PATCH | `/api/{workspaceID}/issues/:issueID` | Обновить задачу (partial) | Team member |
+| DELETE | `/api/{workspaceID}/issues/:issueID` | Удалить задачу | Team member |
 
-**Фильтры GET /api/issues:**
+**Фильтры GET /api/{workspaceID}/issues:**
 
 | Param | Type | Notes |
 |-------|------|-------|
@@ -118,11 +120,11 @@ LIMIT 50
 
 | Method | Path | Description | Access |
 |--------|------|-------------|--------|
-| GET | `/api/projects` | Список проектов | Member |
-| POST | `/api/projects` | Создать проект | Member |
-| GET | `/api/projects/:projectID` | Детали проекта | Member |
-| PATCH | `/api/projects/:projectID` | Обновить проект | Member |
-| DELETE | `/api/projects/:projectID` | Удалить проект | Owner/Admin |
+| GET | `/api/{workspaceID}/projects` | Список проектов | Member |
+| POST | `/api/{workspaceID}/projects` | Создать проект | Member |
+| GET | `/api/{workspaceID}/projects/:projectID` | Детали проекта | Member |
+| PATCH | `/api/{workspaceID}/projects/:projectID` | Обновить проект | Member |
+| DELETE | `/api/{workspaceID}/projects/:projectID` | Удалить проект | Owner/Admin |
 
 ---
 
@@ -130,9 +132,9 @@ LIMIT 50
 
 | Method | Path | Description | Access |
 |--------|------|-------------|--------|
-| GET | `/api/labels` | Все labels (workspace + team level) | Member |
-| POST | `/api/labels` | Создать label (team_id=null → workspace) | Member |
-| DELETE | `/api/labels/:labelID` | Удалить label | Member |
+| GET | `/api/{workspaceID}/labels` | Все labels (workspace + team level) | Member |
+| POST | `/api/{workspaceID}/labels` | Создать label (team_id=null → workspace) | Member |
+| DELETE | `/api/{workspaceID}/labels/:labelID` | Удалить label | Member |
 
 ---
 
@@ -140,9 +142,9 @@ LIMIT 50
 
 | Method | Path | Description | Access |
 |--------|------|-------------|--------|
-| GET | `/api/integrations/gitlab` | Статус GitLab-интеграции | Member |
-| POST | `/api/integrations/gitlab` | Настроить GitLab (URL + token) | Owner/Admin |
-| DELETE | `/api/integrations/gitlab` | Удалить интеграцию | Owner/Admin |
+| GET | `/api/{workspaceID}/integrations/gitlab` | Статус GitLab-интеграции | Member |
+| POST | `/api/{workspaceID}/integrations/gitlab` | Настроить GitLab (URL + token) | Owner/Admin |
+| DELETE | `/api/{workspaceID}/integrations/gitlab` | Удалить интеграцию | Owner/Admin |
 
 ---
 
@@ -150,9 +152,9 @@ LIMIT 50
 
 | Method | Path | Description | Access |
 |--------|------|-------------|--------|
-| GET | `/api/tokens` | Список токенов текущего пользователя | Authenticated |
-| POST | `/api/tokens` | Создать токен (raw показывается один раз) | Authenticated |
-| DELETE | `/api/tokens/:tokenID` | Отозвать токен | Authenticated |
+| GET | `/api/{workspaceID}/tokens` | Список токенов текущего пользователя | Authenticated |
+| POST | `/api/{workspaceID}/tokens` | Создать токен (raw показывается один раз) | Authenticated |
+| DELETE | `/api/{workspaceID}/tokens/:tokenID` | Отозвать токен | Authenticated |
 
 ---
 
@@ -162,13 +164,13 @@ Endpoint: `/mcp` (HTTP Streamable). Auth: `Authorization: Bearer <api_token>`.
 
 | Tool | Maps to | Description |
 |------|---------|-------------|
-| `create_issue` | POST /api/issues | Создать задачу |
-| `get_issue` | GET /api/issues/:id | Получить задачу |
-| `update_issue` | PATCH /api/issues/:id | Обновить задачу |
-| `delete_issue` | DELETE /api/issues/:id | Удалить задачу |
-| `search_issues` | GET /api/issues | Поиск с фильтрами |
-| `list_projects` | GET /api/projects | Список проектов |
-| `list_teams` | GET /api/teams | Список команд |
+| `create_issue` | POST /api/{workspaceID}/issues | Создать задачу |
+| `get_issue` | GET /api/{workspaceID}/issues/:id | Получить задачу |
+| `update_issue` | PATCH /api/{workspaceID}/issues/:id | Обновить задачу |
+| `delete_issue` | DELETE /api/{workspaceID}/issues/:id | Удалить задачу |
+| `search_issues` | GET /api/{workspaceID}/issues | Поиск с фильтрами |
+| `list_projects` | GET /api/{workspaceID}/projects | Список проектов |
+| `list_teams` | GET /api/{workspaceID}/teams | Список команд |
 
 ---
 
@@ -176,7 +178,7 @@ Endpoint: `/mcp` (HTTP Streamable). Auth: `Authorization: Bearer <api_token>`.
 
 | Method | Path | Description | Auth |
 |--------|------|-------------|------|
-| POST | `/webhooks/gitlab` | Входящие события GitLab | X-Gitlab-Token |
+| POST | `/webhooks/gitlab/{integrationID}` | Входящие события GitLab | X-Gitlab-Token |
 
 Обрабатываемые события:
 - `merge_request` (open, merge, close) — автостатус задачи
