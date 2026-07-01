@@ -21,11 +21,11 @@ Browser → GET /api/issues (Cookie: session_id=xxx)
 
 ```
 Agent → POST /mcp (Header: Authorization: Bearer <api_token>)
-     → Middleware: lookup token hash in PostgreSQL → set user in context
+     → Middleware: lookup token in PostgreSQL → set user in context
 ```
 
-- API tokens — длинные случайные строки, привязаны к user + workspace.
-- Хранится только hash токена (`token_hash`); raw-значение показывается один раз при создании.
+- API token = UUID v7, он же PK таблицы `api_tokens` и Bearer token.
+- Привязан к user + workspace.
 - Создаются в UI (Settings → API Tokens).
 - `last_used_at` обновляется при использовании.
 
@@ -41,7 +41,7 @@ Agent → POST /mcp (Header: Authorization: Bearer <api_token>)
 
 **TokenAuth** — для `/mcp`, опциональный fallback для `/api/*`:
 1. Читает `Authorization: Bearer <token>` из header.
-2. Хэширует, ищет в `api_tokens`.
+2. Ищет в `api_tokens` по ID.
 3. Кладёт user + workspace в context.
 4. Обновляет `last_used_at`.
 

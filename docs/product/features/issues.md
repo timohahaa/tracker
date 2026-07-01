@@ -14,6 +14,7 @@
 | Priority | enum | no | Urgent, High, Medium, Low, No priority |
 | Project | relation | no | |
 | Labels | tags | no | Workspace-level + team-level |
+| Due date | date | no | Дедлайн задачи |
 
 ### Status Model
 

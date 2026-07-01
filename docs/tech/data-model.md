@@ -26,16 +26,19 @@
 | users | email | Перерегистрация после удаления |
 | workspaces | slug | Пересоздание workspace с тем же slug |
 | workspace_members | (workspace_id, username) | Переиспользование @handle после удаления участника |
+| workspace_members | (workspace_id) WHERE role = 'owner' | Один owner на workspace |
 | teams | (workspace_id, key) | Удалил команду ENG, создал новую |
 | labels | (workspace_id, name) WHERE team_id IS NULL | Workspace-level labels уникальны по имени |
 | labels | (team_id, name) WHERE team_id IS NOT NULL | Team-level labels уникальны внутри команды |
 | integrations | (workspace_id, provider) | Переподключение интеграции |
+| statuses | (team_id, group, position) | Уникальный порядок внутри группы |
 | issues | (team_id, issue_number) | Уникальность identifier внутри команды |
+| invites | (workspace_id, email) WHERE accepted_at IS NULL | Один активный инвайт на email в workspace |
 | attachments | (url, issue_id) | Пересоздание привязки |
 
 ### Multi-workspace
 - User может быть в нескольких workspaces.
-- Workspace context в API URL: `/api/{workspaceID}/issues` — UUID в path.
+- Workspace context в API URL: `/api/workspaces/{workspaceID}/issues` — UUID в path.
 - API tokens (для MCP) скоупнуты на workspace.
 
 ---
@@ -158,6 +161,8 @@ Lookup: `JOIN teams ON ... WHERE teams.key = $1 AND issues.issue_number = $2`.
 | deleted_at | timestamptz | nullable |
 
 Project ↔ Team relationship: junction table `project_teams` (см. ниже). Все команды равноправны, ролей нет (post-MVP при необходимости).
+
+Валидация: при привязке issue к проекту team issue должна быть в `project_teams`. Если нет — service layer автоматически добавляет team в `project_teams` (аналог поведения Linear "add team to project").
 
 ### labels
 

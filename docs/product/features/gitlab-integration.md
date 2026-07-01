@@ -29,10 +29,10 @@
 
 | GitLab Event | Issue Status Transition |
 |-------------|------------------------|
-| MR opened / draft | -> In Progress (первый статус группы In Progress) |
-| MR merged | -> Completed (первый статус группы Completed) |
+| MR opened / draft | -> In Progress (первый по position статус группы In Progress) |
+| MR merged | -> Completed (первый по position статус группы Completed) |
 
-Автостатусы настраиваемы per team (какой именно статус из группы ставить).
+Статус определяется автоматически: берётся первый по `position` статус нужной группы для команды issue.
 
 ### Linkback
 

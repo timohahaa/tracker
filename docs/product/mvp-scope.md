@@ -46,6 +46,7 @@ Issue всегда принадлежит одной команде. Опцио�
 | Priority | enum | Urgent, High, Medium, Low, No priority |
 | Project | relation | |
 | Labels | tags | |
+| Due date | date | дедлайн задачи |
 
 ### Status Model
 
@@ -82,7 +83,7 @@ Issue всегда принадлежит одной команде. Опцио�
 | Notifications (in-app, email, messengers) | Сложная инфраструктура, не блокирует core value | Post-MVP |
 | ИИ-проработка задач (чат, декомпозиция) | Требует зрелой модели данных | Post-MVP |
 | Делегирование задач ИИ-агентам | Зависит от MCP + интеграций | Post-MVP |
-| Estimates / due dates | Не критично для первой версии | Post-MVP |
+| Estimates | Не критично для первой версии | Post-MVP |
 | Sub-issues | Усложняет модель данных | Post-MVP |
 | Cycles / sprints | Противоречит идее "не доска" | Post-MVP, если нужно |
 | Мессенджер-интеграции (Telegram, Пачка) | Нужна система уведомлений | Post-MVP |
