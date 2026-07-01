@@ -8,25 +8,25 @@ API-first подход: любой ИИ-агент может управлять
 
 ### REST API
 
-CRUD для основных сущностей:
+CRUD для основных сущностей. Все endpoint'ы в контексте workspace (UUID в path):
 
 | Endpoint | Methods | Description |
 |----------|---------|-------------|
-| `/api/issues` | GET, POST | Список / создание задач |
-| `/api/issues/:id` | GET, PATCH, DELETE | Чтение / обновление / удаление задачи |
-| `/api/projects` | GET, POST | Список / создание проектов |
-| `/api/projects/:id` | GET, PATCH, DELETE | Чтение / обновление / удаление проекта |
-| `/api/teams` | GET | Список команд |
-| `/api/teams/:id` | GET | Информация о команде |
+| `/api/workspaces/:workspace_id/issues` | GET, POST | Список / создание задач |
+| `/api/workspaces/:workspace_id/issues/:id` | GET, PATCH, DELETE | Чтение / обновление / удаление задачи |
+| `/api/workspaces/:workspace_id/projects` | GET, POST | Список / создание проектов |
+| `/api/workspaces/:workspace_id/projects/:id` | GET, PATCH, DELETE | Чтение / обновление / удаление проекта |
+| `/api/workspaces/:workspace_id/teams` | GET | Список команд |
+| `/api/workspaces/:workspace_id/teams/:id` | GET | Информация о команде |
 
-- Аутентификация: API key (per user или per workspace).
+- Аутентификация: session token (cookie) для UI, API key для внешних клиентов.
 - Фильтрация задач: по status, assignee, priority, project, team.
 - Пагинация: cursor-based.
 - Формат: JSON.
 
 ### MCP Server
 
-MCP-сервер, предоставляющий ИИ-агентам tools для работы с системой:
+MCP-сервер — отдельный сервис с прямым доступом к БД (MCP как транспортный протокол, не обёртка над REST). Предоставляет ИИ-агентам tools для работы с системой:
 
 | Tool | Description |
 |------|-------------|
@@ -38,7 +38,7 @@ MCP-сервер, предоставляющий ИИ-агентам tools дл�
 | `list_projects` | Список проектов |
 | `list_teams` | Список команд |
 
-MCP-сервер — обертка над REST API.
+Аутентификация: API key (per user, скоупнут на workspace).
 
 ## Post-MVP
 

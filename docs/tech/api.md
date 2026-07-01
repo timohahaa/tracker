@@ -67,6 +67,7 @@ LIMIT 50
 | GET | `/api/workspaces/{workspaceID}` | Текущий workspace | Member |
 | PATCH | `/api/workspaces/{workspaceID}` | Обновление настроек | Owner/Admin |
 | GET | `/api/workspaces/{workspaceID}/members` | Список участников | Member |
+| PATCH | `/api/workspaces/{workspaceID}/members/:userID` | Обновить участника (role, username, title) | Owner/Admin |
 | DELETE | `/api/workspaces/{workspaceID}/members/:userID` | Удалить участника | Owner/Admin |
 | POST | `/api/workspaces/{workspaceID}/invites` | Приглашение в workspace | Owner/Admin |
 
@@ -80,6 +81,7 @@ LIMIT 50
 | POST | `/api/workspaces/{workspaceID}/teams` | Создать команду (+ дефолтные статусы) | Member |
 | GET | `/api/workspaces/{workspaceID}/teams/:teamID` | Детали команды | Member |
 | PATCH | `/api/workspaces/{workspaceID}/teams/:teamID` | Обновить команду | Team member |
+| DELETE | `/api/workspaces/{workspaceID}/teams/:teamID` | Удалить команду | Owner/Admin |
 | GET | `/api/workspaces/{workspaceID}/teams/:teamID/members` | Участники команды | Member |
 | POST | `/api/workspaces/{workspaceID}/teams/:teamID/members` | Добавить участника | Team member |
 | DELETE | `/api/workspaces/{workspaceID}/teams/:teamID/members/:userID` | Удалить участника | Team member |

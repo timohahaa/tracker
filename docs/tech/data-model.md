@@ -115,12 +115,12 @@
 | name | text | NOT NULL |
 | group | text | NOT NULL, CHECK (backlog / planned / in_progress / completed / canceled) |
 | position | int | NOT NULL, порядок внутри группы |
-| is_default | bool | NOT NULL, DEFAULT false, дефолтный статус группы |
 | created_at | timestamptz | NOT NULL |
 | updated_at | timestamptz | NOT NULL |
 | deleted_at | timestamptz | nullable |
 
-Default statuses: при создании команды — hardcode в service, INSERT 5 статусов в транзакции.
+Default statuses: при создании команды — hardcode в service, INSERT 5 статусов (по одному на группу) в транзакции.
+"Дефолтный статус группы" = первый по position в группе. Используется при автоматических переходах (GitLab events, создание issue без указания статуса → первый в группе backlog).
 Constraint ">=1 статус на группу" — service layer: проверка count перед soft delete, `errs.Validation` если последний в группе.
 
 ### issues
@@ -181,7 +181,7 @@ Uniqueness:
 - Workspace-level: `UNIQUE(workspace_id, name) WHERE team_id IS NULL AND deleted_at IS NULL`
 - Team-level: `UNIQUE(team_id, name) WHERE team_id IS NOT NULL AND deleted_at IS NULL`
 - Разные команды могут иметь label с одинаковым именем.
-- Пересечение workspace ↔ team (нельзя создать team label "Bug" если есть workspace "Bug" и наоборот) — проверка в service layer.
+- Пересечение workspace ↔ team: нельзя создать team label с именем, которое уже есть на уровне workspace. При создании workspace-level label с именем, которое уже существует как team label — предлагается merge (все team labels с таким именем заменяются одним workspace label). Проверка в service layer.
 
 ### issue_labels
 
@@ -227,6 +227,8 @@ Uniqueness:
 | accepted_at | timestamptz | nullable |
 | created_at | timestamptz | NOT NULL |
 | deleted_at | timestamptz | nullable, отмена инвайта |
+
+Повторный инвайт: если существует активная запись (accepted_at IS NULL, deleted_at IS NULL) — upsert: обновить token, expires_at, role, invited_by. Новая запись не создаётся.
 
 ### project_teams
 

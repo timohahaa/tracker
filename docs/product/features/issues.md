@@ -52,11 +52,11 @@
 
 - Sub-issues (подзадачи).
 - Estimates (оценки трудозатрат).
-- Due dates.
 - Relations между задачами (blocks, related to, duplicate).
 - Activity log (история изменений).
 - Comments / discussion.
 - Attachments.
-- Kanban board view (опционально, как альтернативный вид).
+- Kanban board view + manual issue ordering (ручная сортировка задач внутри вида).
+- Favourites (избранные задачи).
 - Bulk operations (массовое обновление).
 - Templates для задач.
