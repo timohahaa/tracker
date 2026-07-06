@@ -43,6 +43,21 @@
 
 ---
 
+## Schemas
+
+Таблицы разложены по Postgres-схемам. Критерий разбиения:
+
+- **`core`** — глобальная идентичность и auth-артефакты: `users`, `sessions`, `api_tokens`.
+- **`org`** — оргструктура и доступ, **группировки людей**: `workspaces`, `workspace_members`, `invites`, `teams`, `team_members`.
+- **`tracker`** — трекинг работы и планирование, **группировки задач**: `projects`, `project_teams`, `statuses`, `issues`, `labels`, `issue_labels`, `attachments`.
+- **`integration`** — внешние интеграции: `integrations` (таблица `connection`).
+
+Правило одной строкой: **`team` группирует людей → `org`; `project` группирует задачи → `tracker`.** Отсюда `projects`/`project_teams` живут в `tracker` рядом с `issues`, а не в `org`. Post-MVP планировочные сущности (`initiatives`, `milestones`, `cycles`) по этому же критерию лягут в `tracker` (или в отдельную `planning`).
+
+Направление FK строго «вниз» по слоям: `tracker → org → core`, `integration → org`. Пересечения схем допустимы (например `tracker.issues → org.teams`), но обратных ссылок (вверх) нет.
+
+---
+
 ## Tables
 
 ### users
