@@ -42,7 +42,8 @@ Issue всегда принадлежит одной команде. Опцио�
 | Title | text | обязательное |
 | Description | markdown | |
 | Status | enum (grouped) | группы: Backlog, Planned, In Progress, Completed, Canceled |
-| Assignee | user | |
+| Assignees | user[] | Участники задачи (несколько) |
+| Responsible | user | Ответственный, выбирается из участников (как в Kaiten) |
 | Priority | enum | Urgent, High, Medium, Low, No priority |
 | Project | relation | |
 | Labels | tags | |

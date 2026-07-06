@@ -48,7 +48,6 @@ CREATE TABLE tracker.issue (
     , project_id   uuid                   REFERENCES tracker.project (id)
     , status_id    uuid         NOT NULL  REFERENCES tracker.status (id)
     , creator_id   uuid                   REFERENCES core.user (id)
-    , assignee_id  uuid                   REFERENCES core.user (id)
     , title        text         NOT NULL
     , description  text
     , priority     text         NOT NULL  DEFAULT 'none'
@@ -63,8 +62,21 @@ CREATE TABLE tracker.issue (
 
 CREATE UNIQUE INDEX idx_tracker_issue_uniq_number ON tracker.issue (team_id, issue_number) WHERE deleted_at IS NULL;
 CREATE INDEX idx_tracker_issue_status_id   ON tracker.issue (status_id);
-CREATE INDEX idx_tracker_issue_assignee_id ON tracker.issue (assignee_id);
 CREATE INDEX idx_tracker_issue_project_id  ON tracker.issue (project_id);
+
+CREATE TABLE tracker.issue_assignee (
+    issue_id     uuid         NOT NULL  REFERENCES tracker.issue (id)
+    , user_id    uuid         NOT NULL  REFERENCES core.user (id)
+    , is_primary boolean      NOT NULL  DEFAULT false
+    , created_at timestamptz  NOT NULL  DEFAULT now()
+    , updated_at timestamptz  NOT NULL  DEFAULT now()
+    , deleted_at timestamptz
+
+    , PRIMARY KEY (issue_id, user_id)
+);
+
+CREATE UNIQUE INDEX idx_tracker_issue_assignee_uniq_primary ON tracker.issue_assignee (issue_id) WHERE is_primary AND deleted_at IS NULL;
+CREATE INDEX idx_tracker_issue_assignee_user_id ON tracker.issue_assignee (user_id) WHERE deleted_at IS NULL;
 
 CREATE TABLE tracker.label (
     id              uuid         NOT NULL  DEFAULT uuidv7()  PRIMARY KEY

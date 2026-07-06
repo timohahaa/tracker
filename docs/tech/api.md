@@ -101,6 +101,27 @@ LIMIT 50
 | GET | `/api/workspaces/{workspaceID}/issues/:issueID` | Детали задачи (UUID или identifier) | Member |
 | PATCH | `/api/workspaces/{workspaceID}/issues/:issueID` | Обновить задачу (partial) | Team member |
 | DELETE | `/api/workspaces/{workspaceID}/issues/:issueID` | Удалить задачу | Team member |
+| POST | `/api/workspaces/{workspaceID}/issues/:issueID/assignees` | Добавить участника (`{user_id}`) | Team member |
+| DELETE | `/api/workspaces/{workspaceID}/issues/:issueID/assignees/:userID` | Убрать участника | Team member |
+| PUT | `/api/workspaces/{workspaceID}/issues/:issueID/assignees/:userID/primary` | Назначить ответственным (только из участников) | Team member |
+
+**Assignees:**
+
+- В теле PATCH `/issues/:issueID` можно передать массив `assignees` (replace-семантика всего набора):
+
+```json
+{
+  "assignees": [
+    { "user_id": "...", "is_primary": true },
+    { "user_id": "...", "is_primary": false }
+  ]
+}
+```
+
+- Точечные операции — через sub-resource endpoints выше.
+- Правила: `is_primary` максимум у одного участника; ответственный обязан быть среди участников; снятие ответственного оставляет задачу без ответственного.
+
+Форма поля `assignees` в ответе issue совпадает с примером выше.
 
 **Фильтры GET /api/workspaces/{workspaceID}/issues:**
 
@@ -109,7 +130,8 @@ LIMIT 50
 | team | string | team ID or key (ENG) |
 | status | string | status ID |
 | status_group | string | backlog, planned, in_progress, completed, canceled |
-| assignee | string | user ID |
+| assignee | string | user ID (любой участник задачи) |
+| responsible | string | user ID (только ответственный) |
 | priority | string | urgent, high, medium, low, none |
 | project | string | project ID |
 | label | string | label ID (repeatable) |
@@ -170,9 +192,9 @@ Endpoint: `/mcp` (HTTP Streamable). Auth: `Authorization: Bearer <api_token>`.
 
 | Tool | Maps to | Description |
 |------|---------|-------------|
-| `create_issue` | POST /api/workspaces/{workspaceID}/issues | Создать задачу |
+| `create_issue` | POST /api/workspaces/{workspaceID}/issues | Создать задачу (принимает `assignees` с `is_primary`) |
 | `get_issue` | GET /api/workspaces/{workspaceID}/issues/:id | Получить задачу |
-| `update_issue` | PATCH /api/workspaces/{workspaceID}/issues/:id | Обновить задачу |
+| `update_issue` | PATCH /api/workspaces/{workspaceID}/issues/:id | Обновить задачу (`assignees` — replace-семантика) |
 | `delete_issue` | DELETE /api/workspaces/{workspaceID}/issues/:id | Удалить задачу |
 | `search_issues` | GET /api/workspaces/{workspaceID}/issues | Поиск с фильтрами |
 | `list_projects` | GET /api/workspaces/{workspaceID}/projects | Список проектов |

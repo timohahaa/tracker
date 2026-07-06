@@ -46,7 +46,7 @@ Accepted
 | Language (backend) | **Go 1.22+** | Знакомый, быстрый, один бинарник |
 | HTTP router | **chi** | Лёгкий, идиоматичный, middleware-friendly |
 | DB access | **sqlx** + raw SQL | Полный контроль над запросами, без ORM-магии |
-| Database | **PostgreSQL 16** | Реляционная модель, JSONB, FTS, надёжность |
+| Database | **PostgreSQL 18** | Реляционная модель, JSONB, FTS, надёжность, нативный `uuidv7()` |
 | Migrations | **golang-migrate** | Миграции встроены в бинарник, запускаются при старте |
 | Frontend | **Vite + React 18 + TypeScript** | SPA, быстрый HMR |
 | UI kit | **shadcn/ui + Tailwind CSS** | Быстрый старт, кастомизируемо, доработка позже |
@@ -65,6 +65,7 @@ Accepted
 ### Positive
 
 - Один бинарник (backend + MCP + миграции) — простой запуск и тестирование.
+- PostgreSQL 18 — встроенная функция `uuidv7()`, UUID генерируются на стороне БД без расширений.
 - Монорепо — атомарные изменения фронт+бэк, один PR.
 - sqlx + raw SQL — предсказуемые запросы, легко оптимизировать.
 - shadcn/ui — быстрый старт с приличным UI, можно заменить компоненты позже.

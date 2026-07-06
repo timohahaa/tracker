@@ -3,7 +3,7 @@
 ## Decisions
 
 ### Primary Keys
-- UUID v7 everywhere (сортируемый по времени, хорош для cursor pagination).
+- UUID v7 everywhere (сортируемый по времени, хорош для cursor pagination). Генерируется нативным `uuidv7()` в `DEFAULT` (требует PostgreSQL 18+).
 - Некоторые сущности имеют public-facing ID (issue identifier `TEAM-123`, workspace slug, team key).
 
 ### Timestamps
@@ -33,6 +33,7 @@
 | integrations | (workspace_id, provider) | Переподключение интеграции |
 | statuses | (team_id, group, position) | Уникальный порядок внутри группы |
 | issues | (team_id, issue_number) | Уникальность identifier внутри команды |
+| issue_assignees | (issue_id) WHERE is_primary | Один ответственный на issue |
 | invites | (workspace_id, email) WHERE accepted_at IS NULL | Один активный инвайт на email в workspace |
 | attachments | (url, issue_id) | Пересоздание привязки |
 
@@ -49,12 +50,12 @@
 
 - **`core`** — глобальная идентичность и auth-артефакты: `users`, `sessions`, `api_tokens`.
 - **`org`** — оргструктура и доступ, **группировки людей**: `workspaces`, `workspace_members`, `invites`, `teams`, `team_members`.
-- **`tracker`** — трекинг работы и планирование, **группировки задач**: `projects`, `project_teams`, `statuses`, `issues`, `labels`, `issue_labels`, `attachments`.
+- **`tracker`** — трекинг работы и планирование, **группировки задач**: `projects`, `project_teams`, `statuses`, `issues`, `issue_assignees`, `labels`, `issue_labels`, `attachments`.
 - **`integration`** — внешние интеграции: `integrations` (таблица `connection`).
 
 Правило одной строкой: **`team` группирует людей → `org`; `project` группирует задачи → `tracker`.** Отсюда `projects`/`project_teams` живут в `tracker` рядом с `issues`, а не в `org`. Post-MVP планировочные сущности (`initiatives`, `milestones`, `cycles`) по этому же критерию лягут в `tracker` (или в отдельную `planning`).
 
-Направление FK строго «вниз» по слоям: `tracker → org → core`, `integration → org`. Пересечения схем допустимы (например `tracker.issues → org.teams`), но обратных ссылок (вверх) нет.
+Направление FK строго «вниз» по слоям: `tracker → org → core`, `integration → org`, `tracker → integration` (`attachments.integration_id → integrations`). Пересечения схем допустимы (например `tracker.issues → org.teams`), но обратных ссылок (вверх) нет.
 
 ---
 
@@ -105,7 +106,7 @@
 | name | text | NOT NULL |
 | description | text | nullable |
 | key | text | UNIQUE per workspace (e.g. "ENG"), используется в identifier |
-| next_issue_number | int | NOT NULL, DEFAULT 1, атомарный инкремент |
+| next_issue_number | int | NOT NULL, DEFAULT 0, последний выданный номер (атомарный инкремент, см. Issue Identifier Generation) |
 | created_at | timestamptz | NOT NULL |
 | updated_at | timestamptz | NOT NULL |
 | deleted_at | timestamptz | nullable |
@@ -147,7 +148,6 @@ Constraint ">=1 статус на группу" — service layer: провер�
 | project_id | uuid | FK → projects, nullable |
 | status_id | uuid | FK → statuses, NOT NULL |
 | creator_id | uuid | FK → users, nullable. NULL если создано интеграцией/системой. Post-MVP: bot_actor для non-human creators |
-| assignee_id | uuid | FK → users, nullable |
 | title | text | NOT NULL |
 | description | text | nullable, markdown |
 | priority | text | NOT NULL, DEFAULT 'none', CHECK (none / urgent / high / medium / low). Сортировка: CASE WHEN в SQL |
@@ -160,6 +160,8 @@ Constraint ">=1 статус на группу" — service layer: провер�
 Identifier (`ENG-123`): НЕ хранится как колонка. Вычисляется из `teams.key + '-' + issues.issue_number`.
 При смене team key — identifier меняется автоматически (без UPDATE issues).
 Lookup: `JOIN teams ON ... WHERE teams.key = $1 AND issues.issue_number = $2`.
+
+Assignees: у issue нет колонки `assignee_id`. Участники (assignees) вынесены в junction `issue_assignees` (несколько участников + один ответственный `is_primary`), см. ниже.
 
 ### projects
 
@@ -206,6 +208,28 @@ Uniqueness:
 | label_id | uuid | FK → labels, PK part |
 | created_at | timestamptz | NOT NULL |
 | deleted_at | timestamptz | nullable |
+
+### issue_assignees
+
+Участники задачи (несколько) + один ответственный (аналог Kaiten: «Участники» + «Ответственный»).
+
+| Column | Type | Notes |
+|--------|------|-------|
+| issue_id | uuid | FK → issues, PK part |
+| user_id | uuid | FK → users, PK part |
+| is_primary | bool | NOT NULL, DEFAULT false. Ответственный за задачу |
+| created_at | timestamptz | NOT NULL |
+| updated_at | timestamptz | NOT NULL |
+| deleted_at | timestamptz | nullable |
+
+Бизнес-правила (service layer, кроме отмеченного):
+- **≤ 1 ответственный** на issue — гарантируется partial unique index `(issue_id) WHERE is_primary AND deleted_at IS NULL` (единственное правило на уровне БД).
+- **Ответственный ⊆ участников**: нельзя пометить `is_primary` пользователя, которого нет среди активных assignees.
+- **Смена ответственного**: снять `is_primary` у старого → выставить у нового в одной транзакции (partial unique index нельзя `DEFERRABLE`).
+- **Снятие участника-ответственного** → issue остаётся без ответственного (без авто-перевода на другого).
+- Assignee должен быть **активным** участником команды issue — проверка в коде (FK на `users` этого не гарантирует, см. Soft Delete).
+- При удалении участника из команды — каскадно снять его с задач (soft delete).
+- 0 участников допустимо (unassigned).
 
 ### sessions
 
@@ -299,7 +323,7 @@ UNIQUE(url, issue_id) WHERE deleted_at IS NULL — один ресурс на is
 ## Issue Identifier Generation
 
 1. Service начинает транзакцию.
-2. `UPDATE teams SET next_issue_number = next_issue_number + 1 WHERE id = $1 RETURNING next_issue_number` — атомарный инкремент, row-level lock.
+2. `UPDATE teams SET next_issue_number = next_issue_number + 1 WHERE id = $1 RETURNING next_issue_number` — атомарный инкремент, row-level lock. Возвращается инкрементированное значение: `next_issue_number` = «последний выданный номер» (`DEFAULT 0`), поэтому первый issue получает номер 1.
 3. INSERT issue с `issue_number = returned value`.
 4. Commit.
 
