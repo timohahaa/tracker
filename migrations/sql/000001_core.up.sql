@@ -13,7 +13,7 @@ CREATE TABLE core.user (
 CREATE UNIQUE INDEX idx_core_user_uniq_email ON core.user (LOWER(email)) WHERE deleted_at IS NULL;
 
 CREATE TABLE core.session (
-    id            text         NOT NULL  PRIMARY KEY
+    id            uuid         NOT NULL  DEFAULT uuidv7()  PRIMARY KEY
     , user_id     uuid         NOT NULL  REFERENCES core.user (id)
     , expires_at  timestamptz  NOT NULL
     , created_at  timestamptz  NOT NULL  DEFAULT now()

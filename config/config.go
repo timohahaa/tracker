@@ -12,10 +12,19 @@ type Config struct {
 	HTTPAddr string `arg:"--,env:HTTP_ADDR"`
 
 	// MigrationsPath — путь до директории с .sql-миграциями.
-	MigrationsPath string `arg:"--,env:MIGRATIONS_PATH"`
+	MigrationsPath string `arg:"required,--,env:MIGRATIONS_PATH"`
 
 	// SessionTTL — время жизни web-сессии.
 	SessionTTL time.Duration `arg:"--,env:SESSION_TTL"`
+
+	// MaxOpenConns — макс. число открытых соединений с БД.
+	MaxOpenConns int `arg:"--,env:DB_MAX_OPEN_CONNS"`
+
+	// MaxIdleConns — макс. число idle-соединений в пуле.
+	MaxIdleConns int `arg:"--,env:DB_MAX_IDLE_CONNS"`
+
+	// ConnMaxLifetime — макс. время жизни соединения.
+	ConnMaxLifetime time.Duration `arg:"--,env:DB_CONN_MAX_LIFETIME"`
 
 	// Debug — включает debug-уровень логирования.
 	Debug bool `arg:"--,env:DEBUG"`
@@ -26,10 +35,16 @@ func (c *Config) SetDefaults() {
 	if c.HTTPAddr == "" {
 		c.HTTPAddr = ":8080"
 	}
-	if c.MigrationsPath == "" {
-		c.MigrationsPath = "migrations/sql"
-	}
 	if c.SessionTTL <= 0 {
 		c.SessionTTL = 30 * 24 * time.Hour
+	}
+	if c.MaxOpenConns <= 0 {
+		c.MaxOpenConns = 25
+	}
+	if c.MaxIdleConns <= 0 {
+		c.MaxIdleConns = 25
+	}
+	if c.ConnMaxLifetime <= 0 {
+		c.ConnMaxLifetime = 5 * time.Minute
 	}
 }

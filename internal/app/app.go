@@ -34,6 +34,10 @@ func New(cfg config.Config) (*App, error) {
 		return nil, err
 	}
 
+	db.SetMaxOpenConns(cfg.MaxOpenConns)
+	db.SetMaxIdleConns(cfg.MaxIdleConns)
+	db.SetConnMaxLifetime(cfg.ConnMaxLifetime)
+
 	if err := migrations.Up(migrations.Config{
 		DSN:      cfg.PostgresDSN,
 		Path:     cfg.MigrationsPath,

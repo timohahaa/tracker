@@ -21,6 +21,7 @@ run:
 	@DEBUG=true \
 	HTTP_ADDR=:8080 \
 	POSTGRES_DSN=$(POSTGRES_DSN) \
+	MIGRATIONS_PATH=migrations/sql \
 	go run cmd/app/main.go
 
 .PHONY: compose-up

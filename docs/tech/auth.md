@@ -13,6 +13,7 @@ Browser → GET /api/issues (Cookie: session_id=xxx)
 ```
 
 - Сессии хранятся в PostgreSQL (`sessions` таблица).
+- session_id = UUID v7, он же PK таблицы `core.session` (генерируется БД через `uuidv7()`).
 - Cookie: httpOnly, secure, SameSite=Lax.
 - Сессия имеет expires_at; при каждом запросе можно продлевать (sliding window) — TBD.
 - Logout = удаление записи из sessions.
