@@ -17,6 +17,9 @@ type Config struct {
 	// SessionTTL — время жизни web-сессии.
 	SessionTTL time.Duration `arg:"--,env:SESSION_TTL"`
 
+	// SessionCookieName — имя cookie web-сессии (см. docs/tech/auth.md).
+	SessionCookieName string `arg:"--,env:SESSION_COOKIE_NAME"`
+
 	// MaxOpenConns — макс. число открытых соединений с БД.
 	MaxOpenConns int `arg:"--,env:DB_MAX_OPEN_CONNS"`
 
@@ -37,6 +40,9 @@ func (c *Config) SetDefaults() {
 	}
 	if c.SessionTTL <= 0 {
 		c.SessionTTL = 30 * 24 * time.Hour
+	}
+	if c.SessionCookieName == "" {
+		c.SessionCookieName = "session_id"
 	}
 	if c.MaxOpenConns <= 0 {
 		c.MaxOpenConns = 25
