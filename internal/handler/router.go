@@ -6,6 +6,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	chimw "github.com/go-chi/chi/v5/middleware"
 
+	"github.com/timohahaa/tracker/config"
 	"github.com/timohahaa/tracker/internal/handler/auth"
 	"github.com/timohahaa/tracker/internal/handler/integration"
 	"github.com/timohahaa/tracker/internal/handler/issue"
@@ -21,11 +22,17 @@ import (
 )
 
 // New собирает корневой HTTP-роутер: /api/*, /mcp, /webhooks/*.
-func New(services *service.Services) http.Handler {
+// При debug=true дополнительно раздаётся OpenAPI-дока на /docs (Scalar UI)
+// и сырая спека на /docs/openapi.json.
+func New(services *service.Services, cfg config.Config) http.Handler {
 	mw := middleware.New(services)
 
 	r := chi.NewMux()
 	r.Use(chimw.Recoverer)
+
+	if cfg.Debug {
+		mountDocs(r)
+	}
 
 	// REST API (/api/*)
 	r.Route("/api", func(r chi.Router) {

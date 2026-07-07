@@ -50,7 +50,7 @@ func New(cfg config.Config) (*App, error) {
 
 	repos := repository.New(db)
 	services := service.New(repos, cfg)
-	router := handler.New(services)
+	router := handler.New(services, cfg)
 
 	return &App{
 		cfg: cfg,

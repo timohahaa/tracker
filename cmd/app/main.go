@@ -36,6 +36,22 @@ func init() {
 	}
 }
 
+//	@title			Tracker API
+//	@version		0.1
+//	@description	REST API трекера задач.
+//
+//	@servers.url			http://localhost:8080
+//	@servers.description	Local development
+//
+// Схемы аутентификации. ВНИМАНИЕ: swag v2.0.0-rc5 умеет вывести только ОДНУ
+// securityDefinitions (getSecurityDefinitionKey берёт первый ключ и остальные
+// схлопываются в него), поэтому объявляем основную — сессионную cookie.
+// TODO(swag): добавить вторую схему BearerToken (apiKey, in header, Authorization)
+// для /mcp, когда rc5 научится нескольким схемам или после ручной пост-обработки.
+//
+//	@securityDefinitions.apikey	SessionCookie
+//	@in							cookie
+//	@name						session_id
 func main() {
 	var cfg config.Config
 	arg.MustParse(&cfg)

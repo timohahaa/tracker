@@ -30,7 +30,7 @@ func setupServer(t *testing.T) (*httptest.Server, string) {
 	cfg.SetDefaults()
 	repos := repository.New(db)
 	services := service.New(repos, cfg)
-	srv := httptest.NewServer(handler.New(services))
+	srv := httptest.NewServer(handler.New(services, cfg))
 	t.Cleanup(srv.Close)
 	return srv, cfg.SessionCookieName
 }

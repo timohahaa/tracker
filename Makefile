@@ -44,9 +44,13 @@ test:
 test-integration:
 	TEST_POSTGRES_DSN=$(POSTGRES_DSN) go test -tags=integration ./...
 
+.PHONY: swag-install
+swag-install:
+	go install github.com/swaggo/swag/v2/cmd/swag@v2.0.0-rc5
+
 .PHONY: swag-init
 swag-init:
-	swag init -g cmd/app/main.go -o docs/swagger
+	swag init --v3.1 -g cmd/app/main.go -o docs/swagger --parseInternal --parseDependency
 
 .PHONY: tidy
 tidy:

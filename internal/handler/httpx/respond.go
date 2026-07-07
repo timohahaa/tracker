@@ -10,7 +10,13 @@ import (
 	"github.com/timohahaa/tracker/internal/errs"
 )
 
-type errorResponse struct {
+// ErrorResponse — конверт ошибки API: {"error": {...}}.
+type ErrorResponse struct {
+	Error ErrorBody `json:"error"`
+}
+
+// ErrorBody — тело доменной ошибки в HTTP-ответе.
+type ErrorBody struct {
 	Code    string            `json:"code"`
 	Message string            `json:"message"`
 	Detail  string            `json:"detail,omitempty"`
@@ -34,13 +40,13 @@ func RespondError(w http.ResponseWriter, err error) {
 	var appErr *errs.AppError
 	if !errors.As(err, &appErr) {
 		log.Errorf("respond: unrecognized error: %v", err)
-		RespondJSON(w, http.StatusInternalServerError, map[string]errorResponse{
-			"error": {Code: string(errs.CodeInternal), Message: "internal error"},
+		RespondJSON(w, http.StatusInternalServerError, ErrorResponse{
+			Error: ErrorBody{Code: string(errs.CodeInternal), Message: "internal error"},
 		})
 		return
 	}
-	RespondJSON(w, mapHTTPStatus(appErr.Code), map[string]errorResponse{
-		"error": {
+	RespondJSON(w, mapHTTPStatus(appErr.Code), ErrorResponse{
+		Error: ErrorBody{
 			Code:    string(appErr.Code),
 			Message: appErr.Message,
 			Detail:  appErr.Detail,

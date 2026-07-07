@@ -34,12 +34,11 @@ func New(services *service.Services) *chi.Mux {
 //	@Summary		Register a new user and workspace
 //	@Description	Создаёт пользователя, его workspace и owner-membership, открывает сессию.
 //	@Tags			auth
-//	@Accept			json
 //	@Produce		json
 //	@Param			body	body		registerRequest	true	"Registration payload"
 //	@Success		201		{object}	registerResponse
-//	@Failure		400		{object}	map[string]interface{}
-//	@Failure		409		{object}	map[string]interface{}
+//	@Failure		400		{object}	httpx.ErrorResponse
+//	@Failure		409		{object}	httpx.ErrorResponse
 //	@Header			201		{string}	Set-Cookie	"session_id"
 //	@Router			/api/auth/register [post]
 func (h *Handler) register(w http.ResponseWriter, r *http.Request) {
@@ -67,12 +66,11 @@ func (h *Handler) register(w http.ResponseWriter, r *http.Request) {
 //	@Summary		Log in with email and password
 //	@Description	Проверяет учётные данные и открывает сессию (Set-Cookie session_id).
 //	@Tags			auth
-//	@Accept			json
 //	@Produce		json
 //	@Param			body	body		loginRequest	true	"Login payload"
 //	@Success		200		{object}	loginResponse
-//	@Failure		400		{object}	map[string]interface{}
-//	@Failure		401		{object}	map[string]interface{}
+//	@Failure		400		{object}	httpx.ErrorResponse
+//	@Failure		401		{object}	httpx.ErrorResponse
 //	@Header			200		{string}	Set-Cookie	"session_id"
 //	@Router			/api/auth/login [post]
 func (h *Handler) login(w http.ResponseWriter, r *http.Request) {
@@ -116,6 +114,7 @@ func (h *Handler) logout(w http.ResponseWriter, r *http.Request) {
 //	@Summary		Accept a workspace invite
 //	@Description	Не реализовано (Фаза 2.2).
 //	@Tags			auth
+//	@Failure		501	"Not Implemented"
 //	@Router			/api/auth/accept-invite [post]
 func (h *Handler) acceptInvite(w http.ResponseWriter, r *http.Request) {
 	// TODO(phase-2.2): реализовать приём инвайта (см. org.invite, docs/tech/auth.md).
