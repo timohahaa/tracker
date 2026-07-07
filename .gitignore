@@ -1,0 +1,4 @@
+.build/
+.env
+frontend/dist/
+docs/swagger/

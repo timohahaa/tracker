@@ -1,0 +1,44 @@
+PLATFORM:=$(shell uname)
+
+ifeq ($(PLATFORM), Darwin)
+	BUILD_ENVPARMS:=GOOS=darwin GOARCH=arm64 CGO_ENABLED=0
+endif
+ifeq ($(PLATFORM), Linux)
+	BUILD_ENVPARMS:=GOOS=linux GOARCH=amd64 CGO_ENABLED=0
+endif
+
+LDFLAGS:=-s -w
+
+POSTGRES_DSN?=postgres://postgres:password@localhost:5432/tracker?sslmode=disable
+
+.PHONY: build
+build:
+	@[ -d .build ] || mkdir -p .build
+	@$(BUILD_ENVPARMS) go build -ldflags "$(LDFLAGS)" -o .build/app cmd/app/main.go
+
+.PHONY: run
+run:
+	@DEBUG=true \
+	HTTP_ADDR=:8080 \
+	POSTGRES_DSN=$(POSTGRES_DSN) \
+	go run cmd/app/main.go
+
+.PHONY: compose-up
+compose-up:
+	docker compose up -d
+
+.PHONY: compose-down
+compose-down:
+	docker compose down
+
+.PHONY: compose-shutdown
+compose-shutdown:
+	docker compose down --volumes
+
+.PHONY: swag-init
+swag-init:
+	swag init -g cmd/app/main.go -o docs/swagger
+
+.PHONY: tidy
+tidy:
+	go mod tidy
