@@ -24,3 +24,30 @@
 ## Getting Started
 
 <!-- Появится когда будет код -->
+
+## Тесты
+
+- Юнит-тесты (БД не нужна):
+
+```bash
+make test          # go test ./...
+```
+
+- Integration-тесты (реальный PostgreSQL, файлы с build-тегом `integration`):
+
+```bash
+make compose-up    # поднять postgres:18 (БД tracker)
+make run           # применяет миграции при старте (migrations.Up); можно прервать после "[migrate]: success"
+make test-integration
+```
+
+`test-integration` прокидывает `TEST_POSTGRES_DSN` (по умолчанию берётся из `POSTGRES_DSN`).
+Можно задать его вручную:
+
+```bash
+TEST_POSTGRES_DSN='postgres://postgres:password@localhost:5432/tracker?sslmode=disable' \
+  go test -tags=integration ./test/...
+```
+
+Миграции применяются снаружи — тесты подключаются к уже мигрированной БД.
+Если `TEST_POSTGRES_DSN` не задан, integration-тесты корректно пропускаются (`t.Skip`).

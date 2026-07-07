@@ -35,6 +35,14 @@ compose-down:
 compose-shutdown:
 	docker compose down --volumes
 
+.PHONY: test
+test:
+	go test ./...
+
+.PHONY: test-integration
+test-integration:
+	TEST_POSTGRES_DSN=$(POSTGRES_DSN) go test -tags=integration ./...
+
 .PHONY: swag-init
 swag-init:
 	swag init -g cmd/app/main.go -o docs/swagger

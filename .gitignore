@@ -2,3 +2,5 @@
 .env
 frontend/dist/
 docs/swagger/
+
+PLAN.md
