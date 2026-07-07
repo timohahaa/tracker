@@ -1,8 +1,6 @@
 package repository
 
-import "github.com/jmoiron/sqlx"
-
-// InviteRepo — доступ к org.invites.
+// InviteRepo — доступ к org.invite.
 type InviteRepo struct {
-	db *sqlx.DB
+	db Ext
 }
