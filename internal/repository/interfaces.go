@@ -7,7 +7,7 @@ import (
 	"github.com/timohahaa/tracker/internal/model"
 )
 
-//go:generate go tool mockgen -destination=mocks/mocks.go -package=repomocks github.com/timohahaa/tracker/internal/repository Store,UserRepository,SessionRepository,TokenRepository,WorkspaceRepository
+//go:generate go tool mockgen -destination=mocks/mocks.go -package=repomocks github.com/timohahaa/tracker/internal/repository Store,UserRepository,SessionRepository,TokenRepository,WorkspaceRepository,TeamRepository,StatusRepository
 
 // Интерфейсы репозиториев — шов между service и repository. Конкретные *XRepo
 // реализуют их структурно; сервисы работают через интерфейсы, что позволяет
@@ -23,8 +23,8 @@ type Store interface {
 	Session() SessionRepository
 	Token() TokenRepository
 	Workspace() WorkspaceRepository
-	Team() *TeamRepo
-	Status() *StatusRepo
+	Team() TeamRepository
+	Status() StatusRepository
 	Issue() *IssueRepo
 	Project() *ProjectRepo
 	Label() *LabelRepo
@@ -71,11 +71,37 @@ type WorkspaceRepository interface {
 	CountOwners(ctx context.Context, workspaceID string) (int, error)
 }
 
+// TeamRepository — доступ к org.team и org.team_member.
+type TeamRepository interface {
+	Create(ctx context.Context, t model.Team) (model.Team, error)
+	Get(ctx context.Context, workspaceID, teamID string) (model.Team, error)
+	List(ctx context.Context, workspaceID string) ([]model.Team, error)
+	Update(ctx context.Context, t model.Team) (model.Team, error)
+	Delete(ctx context.Context, teamID string) error
+
+	AddMember(ctx context.Context, m model.TeamMember) (model.TeamMember, error)
+	ListMembers(ctx context.Context, teamID string) ([]model.TeamMember, error)
+	GetMember(ctx context.Context, teamID, userID string) (model.TeamMember, error)
+	RemoveMember(ctx context.Context, teamID, userID string) error
+}
+
+// StatusRepository — доступ к tracker.status.
+type StatusRepository interface {
+	Create(ctx context.Context, s model.Status) (model.Status, error)
+	Get(ctx context.Context, teamID, statusID string) (model.Status, error)
+	List(ctx context.Context, teamID string) ([]model.Status, error)
+	Update(ctx context.Context, s model.Status) (model.Status, error)
+	Delete(ctx context.Context, statusID string) error
+	CountByGroup(ctx context.Context, teamID string, group model.StatusGroup) (int, error)
+}
+
 // Компайл-тайм проверки соответствия конкретных репозиториев интерфейсам.
 var (
 	_ UserRepository      = (*UserRepo)(nil)
 	_ SessionRepository   = (*SessionRepo)(nil)
 	_ TokenRepository     = (*TokenRepo)(nil)
 	_ WorkspaceRepository = (*WorkspaceRepo)(nil)
+	_ TeamRepository      = (*TeamRepo)(nil)
+	_ StatusRepository    = (*StatusRepo)(nil)
 	_ Store               = (*Repositories)(nil)
 )

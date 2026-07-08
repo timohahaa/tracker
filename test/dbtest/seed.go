@@ -59,6 +59,50 @@ func SeedWorkspaceMember(t *testing.T, db *sqlx.DB, workspaceID, userID, role st
 	return username
 }
 
+// SeedTeam вставляет org.team с уникальным key и возвращает её id.
+func SeedTeam(t *testing.T, db *sqlx.DB, workspaceID string) string {
+	t.Helper()
+	key := "T" + uuid.NewString()[:8]
+	var id string
+	err := db.Get(&id, `
+		INSERT INTO org.team (workspace_id, name, key)
+		VALUES ($1, $2, $3) RETURNING id`, workspaceID, key, key)
+	if err != nil {
+		t.Fatalf("seed team: %s", err)
+	}
+	t.Cleanup(func() { _, _ = db.Exec(`DELETE FROM org.team WHERE id = $1`, id) })
+	return id
+}
+
+// SeedTeamMember добавляет участника команды с указанной ролью.
+func SeedTeamMember(t *testing.T, db *sqlx.DB, teamID, userID, role string) {
+	t.Helper()
+	_, err := db.Exec(`
+		INSERT INTO org.team_member (team_id, user_id, role)
+		VALUES ($1, $2, $3)`, teamID, userID, role)
+	if err != nil {
+		t.Fatalf("seed team member: %s", err)
+	}
+	t.Cleanup(func() {
+		_, _ = db.Exec(`DELETE FROM org.team_member WHERE team_id = $1 AND user_id = $2`, teamID, userID)
+	})
+}
+
+// SeedStatus вставляет tracker.status в команду и возвращает её id. Позиция
+// уникальна внутри (team_id, group) — вызывающий отвечает за уникальность.
+func SeedStatus(t *testing.T, db *sqlx.DB, teamID, name, group string, position int) string {
+	t.Helper()
+	var id string
+	err := db.Get(&id, `
+		INSERT INTO tracker.status (team_id, name, status_group, position)
+		VALUES ($1, $2, $3, $4) RETURNING id`, teamID, name, group, position)
+	if err != nil {
+		t.Fatalf("seed status: %s", err)
+	}
+	t.Cleanup(func() { _, _ = db.Exec(`DELETE FROM tracker.status WHERE id = $1`, id) })
+	return id
+}
+
 // SeedSession создаёт активную сессию (expires_at через час) и возвращает её id.
 func SeedSession(t *testing.T, db *sqlx.DB, userID string) string {
 	t.Helper()

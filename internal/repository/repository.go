@@ -24,8 +24,8 @@ type Repositories struct {
 	session     SessionRepository
 	token       TokenRepository
 	workspace   WorkspaceRepository
-	team        *TeamRepo
-	status      *StatusRepo
+	team        TeamRepository
+	status      StatusRepository
 	issue       *IssueRepo
 	project     *ProjectRepo
 	label       *LabelRepo
@@ -67,8 +67,8 @@ func (r *Repositories) User() UserRepository           { return r.user }
 func (r *Repositories) Session() SessionRepository     { return r.session }
 func (r *Repositories) Token() TokenRepository         { return r.token }
 func (r *Repositories) Workspace() WorkspaceRepository { return r.workspace }
-func (r *Repositories) Team() *TeamRepo                { return r.team }
-func (r *Repositories) Status() *StatusRepo            { return r.status }
+func (r *Repositories) Team() TeamRepository           { return r.team }
+func (r *Repositories) Status() StatusRepository       { return r.status }
 func (r *Repositories) Issue() *IssueRepo              { return r.issue }
 func (r *Repositories) Project() *ProjectRepo          { return r.project }
 func (r *Repositories) Label() *LabelRepo              { return r.label }
