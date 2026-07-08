@@ -33,6 +33,15 @@ type WorkspaceMember struct {
 	DeletedAt   *time.Time    `db:"deleted_at"`
 }
 
+// WorkspaceMemberDetails — участник + данные пользователя (JOIN core.user).
+// Read-модель для списка участников: встраивает WorkspaceMember и добавляет
+// email/display_name из core.user.
+type WorkspaceMemberDetails struct {
+	WorkspaceMember
+	Email       string `db:"email"`
+	DisplayName string `db:"display_name"`
+}
+
 // Invite — приглашение в workspace (schema org.invites).
 type Invite struct {
 	ID          string        `db:"id"`
