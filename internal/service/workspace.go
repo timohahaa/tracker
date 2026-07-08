@@ -10,7 +10,7 @@ import (
 
 // WorkspaceService — настройки workspace, участники, роли.
 type WorkspaceService struct {
-	repos *repository.Repositories
+	repos repository.Store
 }
 
 // UpdateSettingsParams — частичное обновление настроек workspace (граница
@@ -32,12 +32,12 @@ type UpdateMemberParams struct {
 // middleware LoadWorkspace. Нет workspace или пользователь не участник →
 // errs.NotFound (существование workspace не раскрываем не-участникам).
 func (s *WorkspaceService) Load(ctx context.Context, workspaceID, userID string) (model.Workspace, model.WorkspaceMember, error) {
-	ws, err := s.repos.Workspace.GetByID(ctx, workspaceID)
+	ws, err := s.repos.Workspace().GetByID(ctx, workspaceID)
 	if err != nil {
 		return model.Workspace{}, model.WorkspaceMember{}, err
 	}
 
-	member, err := s.repos.Workspace.GetMember(ctx, workspaceID, userID)
+	member, err := s.repos.Workspace().GetMember(ctx, workspaceID, userID)
 	if err != nil {
 		if isNotFound(err) {
 			return model.Workspace{}, model.WorkspaceMember{}, errs.NotFound("workspace not found")
@@ -55,7 +55,7 @@ func (s *WorkspaceService) UpdateSettings(ctx context.Context, actor model.Works
 		return model.Workspace{}, errs.Forbidden("insufficient permissions")
 	}
 
-	ws, err := s.repos.Workspace.GetByID(ctx, actor.WorkspaceID)
+	ws, err := s.repos.Workspace().GetByID(ctx, actor.WorkspaceID)
 	if err != nil {
 		return model.Workspace{}, err
 	}
@@ -75,13 +75,13 @@ func (s *WorkspaceService) UpdateSettings(ctx context.Context, actor model.Works
 		ws.Slug = slug
 	}
 
-	return s.repos.Workspace.Update(ctx, ws)
+	return s.repos.Workspace().Update(ctx, ws)
 }
 
 // ListMembers возвращает активных участников workspace. Membership проверен в
 // middleware LoadWorkspace.
 func (s *WorkspaceService) ListMembers(ctx context.Context, workspaceID string) ([]model.WorkspaceMemberDetails, error) {
-	return s.repos.Workspace.ListMembers(ctx, workspaceID)
+	return s.repos.Workspace().ListMembers(ctx, workspaceID)
 }
 
 // UpdateMember обновляет role/username/title участника. Доступно только
@@ -93,7 +93,7 @@ func (s *WorkspaceService) UpdateMember(ctx context.Context, actor model.Workspa
 		return model.WorkspaceMember{}, errs.Forbidden("insufficient permissions")
 	}
 
-	target, err := s.repos.Workspace.GetMember(ctx, actor.WorkspaceID, targetUserID)
+	target, err := s.repos.Workspace().GetMember(ctx, actor.WorkspaceID, targetUserID)
 	if err != nil {
 		return model.WorkspaceMember{}, err
 	}
@@ -104,7 +104,7 @@ func (s *WorkspaceService) UpdateMember(ctx context.Context, actor model.Workspa
 		}
 		// Понижение последнего owner недопустимо.
 		if target.Role == model.WorkspaceRoleOwner && *params.Role != model.WorkspaceRoleOwner {
-			owners, err := s.repos.Workspace.CountOwners(ctx, actor.WorkspaceID)
+			owners, err := s.repos.Workspace().CountOwners(ctx, actor.WorkspaceID)
 			if err != nil {
 				return model.WorkspaceMember{}, err
 			}
@@ -121,7 +121,7 @@ func (s *WorkspaceService) UpdateMember(ctx context.Context, actor model.Workspa
 		target.Title = params.Title
 	}
 
-	return s.repos.Workspace.UpdateMember(ctx, target)
+	return s.repos.Workspace().UpdateMember(ctx, target)
 }
 
 // RemoveMember мягко удаляет участника. Доступно только owner/admin. Последнего
@@ -131,13 +131,13 @@ func (s *WorkspaceService) RemoveMember(ctx context.Context, actor model.Workspa
 		return errs.Forbidden("insufficient permissions")
 	}
 
-	target, err := s.repos.Workspace.GetMember(ctx, actor.WorkspaceID, targetUserID)
+	target, err := s.repos.Workspace().GetMember(ctx, actor.WorkspaceID, targetUserID)
 	if err != nil {
 		return err
 	}
 
 	if target.Role == model.WorkspaceRoleOwner {
-		owners, err := s.repos.Workspace.CountOwners(ctx, actor.WorkspaceID)
+		owners, err := s.repos.Workspace().CountOwners(ctx, actor.WorkspaceID)
 		if err != nil {
 			return err
 		}
@@ -146,7 +146,7 @@ func (s *WorkspaceService) RemoveMember(ctx context.Context, actor model.Workspa
 		}
 	}
 
-	return s.repos.Workspace.DeleteMember(ctx, actor.WorkspaceID, targetUserID)
+	return s.repos.Workspace().DeleteMember(ctx, actor.WorkspaceID, targetUserID)
 }
 
 // canManageWorkspace сообщает, может ли роль управлять workspace/участниками

@@ -18,7 +18,7 @@ type Services struct {
 }
 
 // New собирает Services поверх репозиториев и конфига.
-func New(repos *repository.Repositories, cfg config.Config) *Services {
+func New(repos repository.Store, cfg config.Config) *Services {
 	return &Services{
 		Auth:      &AuthService{repos: repos, cfg: cfg},
 		Workspace: &WorkspaceService{repos: repos},

@@ -14,22 +14,24 @@ import (
 // sqlx.SelectContext поверх этого интерфейса.
 type Ext = sqlx.ExtContext
 
-// Repositories — агрегатор всех репозиториев. Собирается один раз в app.
+// Repositories — агрегатор всех репозиториев и конкретная реализация Store.
+// Собирается один раз в app. Поля приватны, доступ — через методы-аксессоры,
+// чтобы весь набор ходил за интерфейсом Store (мокается в unit-тестах).
 type Repositories struct {
 	db *sqlx.DB // корневой пул — нужен для открытия транзакций в WithTx
 
-	User        *UserRepo
-	Session     *SessionRepo
-	Token       *TokenRepo
-	Workspace   *WorkspaceRepo
-	Team        *TeamRepo
-	Status      *StatusRepo
-	Issue       *IssueRepo
-	Project     *ProjectRepo
-	Label       *LabelRepo
-	Integration *IntegrationRepo
-	Attachment  *AttachmentRepo
-	Invite      *InviteRepo
+	user        UserRepository
+	session     SessionRepository
+	token       TokenRepository
+	workspace   WorkspaceRepository
+	team        *TeamRepo
+	status      *StatusRepo
+	issue       *IssueRepo
+	project     *ProjectRepo
+	label       *LabelRepo
+	integration *IntegrationRepo
+	attachment  *AttachmentRepo
+	invite      *InviteRepo
 }
 
 // New собирает Repositories поверх одного пула соединений.
@@ -43,25 +45,41 @@ func New(db *sqlx.DB) *Repositories {
 // (пул или транзакция).
 func newRepos(ext Ext) *Repositories {
 	return &Repositories{
-		User:        &UserRepo{db: ext},
-		Session:     &SessionRepo{db: ext},
-		Token:       &TokenRepo{db: ext},
-		Workspace:   &WorkspaceRepo{db: ext},
-		Team:        &TeamRepo{db: ext},
-		Status:      &StatusRepo{db: ext},
-		Issue:       &IssueRepo{db: ext},
-		Project:     &ProjectRepo{db: ext},
-		Label:       &LabelRepo{db: ext},
-		Integration: &IntegrationRepo{db: ext},
-		Attachment:  &AttachmentRepo{db: ext},
-		Invite:      &InviteRepo{db: ext},
+		user:        &UserRepo{db: ext},
+		session:     &SessionRepo{db: ext},
+		token:       &TokenRepo{db: ext},
+		workspace:   &WorkspaceRepo{db: ext},
+		team:        &TeamRepo{db: ext},
+		status:      &StatusRepo{db: ext},
+		issue:       &IssueRepo{db: ext},
+		project:     &ProjectRepo{db: ext},
+		label:       &LabelRepo{db: ext},
+		integration: &IntegrationRepo{db: ext},
+		attachment:  &AttachmentRepo{db: ext},
+		invite:      &InviteRepo{db: ext},
 	}
 }
 
-// WithTx выполняет fn в рамках одной транзакции. Переданный *Repositories
-// привязан к транзакции: все запросы через него участвуют в одном BEGIN/COMMIT.
-// При ошибке fn (или commit) транзакция откатывается. Ошибки БД маппятся errs.DB.
-func (r *Repositories) WithTx(ctx context.Context, fn func(*Repositories) error) error {
+// Аксессоры репозиториев — реализация Store. Для репозиториев с методами
+// возвращают интерфейс (мокается), для пока пустых заглушек — конкретный тип
+// (заменяется на интерфейс, когда у репозитория появятся методы).
+func (r *Repositories) User() UserRepository           { return r.user }
+func (r *Repositories) Session() SessionRepository     { return r.session }
+func (r *Repositories) Token() TokenRepository         { return r.token }
+func (r *Repositories) Workspace() WorkspaceRepository { return r.workspace }
+func (r *Repositories) Team() *TeamRepo                { return r.team }
+func (r *Repositories) Status() *StatusRepo            { return r.status }
+func (r *Repositories) Issue() *IssueRepo              { return r.issue }
+func (r *Repositories) Project() *ProjectRepo          { return r.project }
+func (r *Repositories) Label() *LabelRepo              { return r.label }
+func (r *Repositories) Integration() *IntegrationRepo  { return r.integration }
+func (r *Repositories) Attachment() *AttachmentRepo    { return r.attachment }
+func (r *Repositories) Invite() *InviteRepo            { return r.invite }
+
+// WithTx выполняет fn в рамках одной транзакции. Переданный Store привязан к
+// транзакции: все запросы через него участвуют в одном BEGIN/COMMIT. При ошибке
+// fn (или commit) транзакция откатывается. Ошибки БД маппятся errs.DB.
+func (r *Repositories) WithTx(ctx context.Context, fn func(Store) error) error {
 	tx, err := r.db.BeginTxx(ctx, nil)
 	if err != nil {
 		return errs.DB(err)

@@ -20,7 +20,7 @@ func TestTokenRepo_GetByID_And_UpdateLastUsed(t *testing.T) {
 	wsID := dbtest.SeedWorkspace(t, db)
 	tokenID := dbtest.SeedAPIToken(t, db, userID, wsID)
 
-	token, err := repos.Token.GetByID(ctx, tokenID)
+	token, err := repos.Token().GetByID(ctx, tokenID)
 	if err != nil {
 		t.Fatalf("GetByID: %v", err)
 	}
@@ -31,10 +31,10 @@ func TestTokenRepo_GetByID_And_UpdateLastUsed(t *testing.T) {
 		t.Errorf("last_used_at should be nil before use, got %v", token.LastUsedAt)
 	}
 
-	if err := repos.Token.UpdateLastUsed(ctx, tokenID); err != nil {
+	if err := repos.Token().UpdateLastUsed(ctx, tokenID); err != nil {
 		t.Fatalf("UpdateLastUsed: %v", err)
 	}
-	after, err := repos.Token.GetByID(ctx, tokenID)
+	after, err := repos.Token().GetByID(ctx, tokenID)
 	if err != nil {
 		t.Fatalf("GetByID after update: %v", err)
 	}

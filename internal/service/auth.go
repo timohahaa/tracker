@@ -14,7 +14,7 @@ import (
 
 // AuthService — регистрация, логин, сессии, аутентификация по сессии/токену.
 type AuthService struct {
-	repos *repository.Repositories
+	repos repository.Store
 	cfg   config.Config
 }
 
@@ -41,8 +41,8 @@ func (s *AuthService) Register(ctx context.Context, p RegisterParams) (model.Use
 		session model.Session
 	)
 
-	err = s.repos.WithTx(ctx, func(tx *repository.Repositories) error {
-		user, err = tx.User.Create(ctx, model.User{
+	err = s.repos.WithTx(ctx, func(tx repository.Store) error {
+		user, err = tx.User().Create(ctx, model.User{
 			Email:        p.Email,
 			PasswordHash: hash,
 			DisplayName:  p.DisplayName,
@@ -51,11 +51,11 @@ func (s *AuthService) Register(ctx context.Context, p RegisterParams) (model.Use
 			return err
 		}
 
-		slug, err := uniqueSlug(ctx, p.WorkspaceName, tx.Workspace.SlugTaken)
+		slug, err := uniqueSlug(ctx, p.WorkspaceName, tx.Workspace().SlugTaken)
 		if err != nil {
 			return err
 		}
-		ws, err = tx.Workspace.Create(ctx, model.Workspace{
+		ws, err = tx.Workspace().Create(ctx, model.Workspace{
 			Name: p.WorkspaceName,
 			Slug: slug,
 		})
@@ -63,7 +63,7 @@ func (s *AuthService) Register(ctx context.Context, p RegisterParams) (model.Use
 			return err
 		}
 
-		if _, err = tx.Workspace.CreateMember(ctx, model.WorkspaceMember{
+		if _, err = tx.Workspace().CreateMember(ctx, model.WorkspaceMember{
 			WorkspaceID: ws.ID,
 			UserID:      user.ID,
 			Role:        model.WorkspaceRoleOwner,
@@ -72,7 +72,7 @@ func (s *AuthService) Register(ctx context.Context, p RegisterParams) (model.Use
 			return err
 		}
 
-		session, err = tx.Session.Create(ctx, user.ID, s.sessionExpiry())
+		session, err = tx.Session().Create(ctx, user.ID, s.sessionExpiry())
 		return err
 	})
 	if err != nil {
@@ -85,7 +85,7 @@ func (s *AuthService) Register(ctx context.Context, p RegisterParams) (model.Use
 // Login проверяет учётные данные и открывает сессию. Неверные креды (нет такого
 // email либо не совпал пароль) → errs.Unauthorized без раскрытия, что именно не так.
 func (s *AuthService) Login(ctx context.Context, email, password string) (model.User, model.Session, error) {
-	user, err := s.repos.User.GetByEmail(ctx, email)
+	user, err := s.repos.User().GetByEmail(ctx, email)
 	if err != nil {
 		if isNotFound(err) {
 			return model.User{}, model.Session{}, errs.Unauthorized("invalid credentials")
@@ -97,7 +97,7 @@ func (s *AuthService) Login(ctx context.Context, email, password string) (model.
 		return model.User{}, model.Session{}, errs.Unauthorized("invalid credentials")
 	}
 
-	session, err := s.repos.Session.Create(ctx, user.ID, s.sessionExpiry())
+	session, err := s.repos.Session().Create(ctx, user.ID, s.sessionExpiry())
 	if err != nil {
 		return model.User{}, model.Session{}, err
 	}
@@ -106,7 +106,7 @@ func (s *AuthService) Login(ctx context.Context, email, password string) (model.
 
 // Logout удаляет сессию по id (idempotent).
 func (s *AuthService) Logout(ctx context.Context, sessionID string) error {
-	return s.repos.Session.Delete(ctx, sessionID)
+	return s.repos.Session().Delete(ctx, sessionID)
 }
 
 // AuthBySession резолвит сессию из cookie в пользователя: проверяет срок,
@@ -117,7 +117,7 @@ func (s *AuthService) AuthBySession(ctx context.Context, sessionID string) (mode
 		return model.User{}, errs.Unauthorized("authentication required")
 	}
 
-	session, err := s.repos.Session.GetByID(ctx, sessionID)
+	session, err := s.repos.Session().GetByID(ctx, sessionID)
 	if err != nil {
 		if isNotFound(err) {
 			return model.User{}, errs.Unauthorized("invalid session")
@@ -128,7 +128,7 @@ func (s *AuthService) AuthBySession(ctx context.Context, sessionID string) (mode
 		return model.User{}, errs.Unauthorized("session expired")
 	}
 
-	user, err := s.repos.User.GetByID(ctx, session.UserID)
+	user, err := s.repos.User().GetByID(ctx, session.UserID)
 	if err != nil {
 		if isNotFound(err) {
 			return model.User{}, errs.Unauthorized("invalid session")
@@ -137,7 +137,7 @@ func (s *AuthService) AuthBySession(ctx context.Context, sessionID string) (mode
 	}
 
 	// Продление окна — best-effort: сбой продления не должен рушить аутентификацию.
-	_ = s.repos.Session.Extend(ctx, session.ID, s.sessionExpiry())
+	_ = s.repos.Session().Extend(ctx, session.ID, s.sessionExpiry())
 
 	return user, nil
 }
@@ -149,7 +149,7 @@ func (s *AuthService) AuthByToken(ctx context.Context, tokenID string) (model.Us
 		return model.User{}, errs.Unauthorized("authentication required")
 	}
 
-	token, err := s.repos.Token.GetByID(ctx, tokenID)
+	token, err := s.repos.Token().GetByID(ctx, tokenID)
 	if err != nil {
 		if isNotFound(err) {
 			return model.User{}, errs.Unauthorized("invalid token")
@@ -157,7 +157,7 @@ func (s *AuthService) AuthByToken(ctx context.Context, tokenID string) (model.Us
 		return model.User{}, err
 	}
 
-	user, err := s.repos.User.GetByID(ctx, token.UserID)
+	user, err := s.repos.User().GetByID(ctx, token.UserID)
 	if err != nil {
 		if isNotFound(err) {
 			return model.User{}, errs.Unauthorized("invalid token")
@@ -166,7 +166,7 @@ func (s *AuthService) AuthByToken(ctx context.Context, tokenID string) (model.Us
 	}
 
 	// best-effort: сбой обновления last_used_at не должен рушить аутентификацию.
-	_ = s.repos.Token.UpdateLastUsed(ctx, token.ID)
+	_ = s.repos.Token().UpdateLastUsed(ctx, token.ID)
 
 	return user, nil
 }

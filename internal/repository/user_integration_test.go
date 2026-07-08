@@ -23,7 +23,7 @@ func TestUserRepo_CRUD(t *testing.T) {
 	repos := repository.New(db)
 
 	email := "user-" + uuid.NewString() + "@test.local"
-	created, err := repos.User.Create(ctx, model.User{
+	created, err := repos.User().Create(ctx, model.User{
 		Email:        email,
 		PasswordHash: "hash",
 		DisplayName:  "Test User",
@@ -40,7 +40,7 @@ func TestUserRepo_CRUD(t *testing.T) {
 		t.Error("Create: created_at not populated")
 	}
 
-	byEmail, err := repos.User.GetByEmail(ctx, email)
+	byEmail, err := repos.User().GetByEmail(ctx, email)
 	if err != nil {
 		t.Fatalf("GetByEmail: %v", err)
 	}
@@ -49,11 +49,11 @@ func TestUserRepo_CRUD(t *testing.T) {
 	}
 
 	// Регистронезависимый поиск по email.
-	if _, err := repos.User.GetByEmail(ctx, strings.ToUpper(email)); err != nil {
+	if _, err := repos.User().GetByEmail(ctx, strings.ToUpper(email)); err != nil {
 		t.Errorf("GetByEmail (upper): %v", err)
 	}
 
-	byID, err := repos.User.GetByID(ctx, created.ID)
+	byID, err := repos.User().GetByID(ctx, created.ID)
 	if err != nil {
 		t.Fatalf("GetByID: %v", err)
 	}
@@ -69,13 +69,13 @@ func TestUserRepo_DuplicateEmail(t *testing.T) {
 	repos := repository.New(db)
 
 	email := "dup-" + uuid.NewString() + "@test.local"
-	first, err := repos.User.Create(ctx, model.User{Email: email, PasswordHash: "h", DisplayName: "d"})
+	first, err := repos.User().Create(ctx, model.User{Email: email, PasswordHash: "h", DisplayName: "d"})
 	if err != nil {
 		t.Fatalf("Create first: %v", err)
 	}
 	t.Cleanup(func() { _, _ = db.Exec(`DELETE FROM core.user WHERE id = $1`, first.ID) })
 
-	_, err = repos.User.Create(ctx, model.User{Email: email, PasswordHash: "h", DisplayName: "d"})
+	_, err = repos.User().Create(ctx, model.User{Email: email, PasswordHash: "h", DisplayName: "d"})
 	if err == nil {
 		t.Fatal("Create duplicate: expected error, got nil")
 	}
@@ -90,7 +90,7 @@ func TestUserRepo_GetByID_NotFound(t *testing.T) {
 	ctx := context.Background()
 	repos := repository.New(dbtest.Open(t))
 
-	_, err := repos.User.GetByID(ctx, uuid.NewString())
+	_, err := repos.User().GetByID(ctx, uuid.NewString())
 	var appErr *errs.AppError
 	if !errors.As(err, &appErr) || appErr.Code != errs.CodeNotFound {
 		t.Fatalf("GetByID missing: want NotFound, got %v", err)

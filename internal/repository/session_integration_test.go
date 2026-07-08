@@ -22,7 +22,7 @@ func TestSessionRepo_CRUD(t *testing.T) {
 	userID := dbtest.SeedUser(t, db)
 
 	exp := time.Now().Add(time.Hour).Truncate(time.Millisecond)
-	session, err := repos.Session.Create(ctx, userID, exp)
+	session, err := repos.Session().Create(ctx, userID, exp)
 	if err != nil {
 		t.Fatalf("Create: %v", err)
 	}
@@ -31,7 +31,7 @@ func TestSessionRepo_CRUD(t *testing.T) {
 		t.Fatal("Create: empty session id")
 	}
 
-	got, err := repos.Session.GetByID(ctx, session.ID)
+	got, err := repos.Session().GetByID(ctx, session.ID)
 	if err != nil {
 		t.Fatalf("GetByID: %v", err)
 	}
@@ -40,10 +40,10 @@ func TestSessionRepo_CRUD(t *testing.T) {
 	}
 
 	newExp := time.Now().Add(2 * time.Hour)
-	if err := repos.Session.Extend(ctx, session.ID, newExp); err != nil {
+	if err := repos.Session().Extend(ctx, session.ID, newExp); err != nil {
 		t.Fatalf("Extend: %v", err)
 	}
-	extended, err := repos.Session.GetByID(ctx, session.ID)
+	extended, err := repos.Session().GetByID(ctx, session.ID)
 	if err != nil {
 		t.Fatalf("GetByID after extend: %v", err)
 	}
@@ -51,10 +51,10 @@ func TestSessionRepo_CRUD(t *testing.T) {
 		t.Errorf("Extend: expires_at not advanced (%v !> %v)", extended.ExpiresAt, got.ExpiresAt)
 	}
 
-	if err := repos.Session.Delete(ctx, session.ID); err != nil {
+	if err := repos.Session().Delete(ctx, session.ID); err != nil {
 		t.Fatalf("Delete: %v", err)
 	}
-	_, err = repos.Session.GetByID(ctx, session.ID)
+	_, err = repos.Session().GetByID(ctx, session.ID)
 	var appErr *errs.AppError
 	if !errors.As(err, &appErr) || appErr.Code != errs.CodeNotFound {
 		t.Fatalf("GetByID after delete: want NotFound, got %v", err)
