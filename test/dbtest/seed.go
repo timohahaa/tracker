@@ -103,6 +103,31 @@ func SeedStatus(t *testing.T, db *sqlx.DB, teamID, name, group string, position 
 	return id
 }
 
+// SeedIssue вставляет tracker.issue в команду с указанным статусом и возвращает
+// её id и выданный issue_number. Номер вычисляется как max+1 в пределах команды
+// (уникальность per team), чтобы фабрику можно было звать несколько раз подряд.
+func SeedIssue(t *testing.T, db *sqlx.DB, teamID, statusID string) (string, int) {
+	t.Helper()
+	var out struct {
+		ID     string `db:"id"`
+		Number int    `db:"issue_number"`
+	}
+	err := db.Get(&out, `
+		INSERT INTO tracker.issue (team_id, status_id, title, issue_number)
+		VALUES (
+			$1
+			, $2
+			, 'seed issue'
+			, (SELECT COALESCE(MAX(issue_number), 0) + 1 FROM tracker.issue WHERE team_id = $1)
+		)
+		RETURNING id, issue_number`, teamID, statusID)
+	if err != nil {
+		t.Fatalf("seed issue: %s", err)
+	}
+	t.Cleanup(func() { _, _ = db.Exec(`DELETE FROM tracker.issue WHERE id = $1`, out.ID) })
+	return out.ID, out.Number
+}
+
 // SeedSession создаёт активную сессию (expires_at через час) и возвращает её id.
 func SeedSession(t *testing.T, db *sqlx.DB, userID string) string {
 	t.Helper()

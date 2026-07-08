@@ -7,7 +7,7 @@ import (
 	"github.com/timohahaa/tracker/internal/model"
 )
 
-//go:generate go tool mockgen -destination=mocks/mocks.go -package=repomocks github.com/timohahaa/tracker/internal/repository Store,UserRepository,SessionRepository,TokenRepository,WorkspaceRepository,TeamRepository,StatusRepository
+//go:generate go tool mockgen -destination=mocks/mocks.go -package=repomocks github.com/timohahaa/tracker/internal/repository Store,UserRepository,SessionRepository,TokenRepository,WorkspaceRepository,TeamRepository,StatusRepository,IssueRepository
 
 // Интерфейсы репозиториев — шов между service и repository. Конкретные *XRepo
 // реализуют их структурно; сервисы работают через интерфейсы, что позволяет
@@ -25,7 +25,7 @@ type Store interface {
 	Workspace() WorkspaceRepository
 	Team() TeamRepository
 	Status() StatusRepository
-	Issue() *IssueRepo
+	Issue() IssueRepository
 	Project() *ProjectRepo
 	Label() *LabelRepo
 	Integration() *IntegrationRepo
@@ -95,6 +95,24 @@ type StatusRepository interface {
 	CountByGroup(ctx context.Context, teamID string, group model.StatusGroup) (int, error)
 }
 
+// IssueRepository — доступ к tracker.issue. Identifier (ENG-123) не хранится:
+// вычисляется при чтении из org.team.key + issue.issue_number. Инкремент номера
+// (IncrementIssueNumber) обновляет org.team, но живёт здесь как часть выдачи
+// identifier и вызывается в одной транзакции с Create.
+type IssueRepository interface {
+	Create(ctx context.Context, i model.Issue) (model.Issue, error)
+	IncrementIssueNumber(ctx context.Context, teamID string) (int, error)
+	GetByID(ctx context.Context, workspaceID, issueID string) (model.IssueDetails, error)
+	GetByIdentifier(ctx context.Context, workspaceID, teamKey string, issueNumber int) (model.IssueDetails, error)
+	Update(ctx context.Context, i model.Issue) (model.Issue, error)
+	Delete(ctx context.Context, issueID string) error
+
+	// ProjectInWorkspace — read-only проверка, что project активен и принадлежит
+	// workspace. Позволяет валидировать project_id в issue-сервисе, не затрагивая
+	// write-методы (будущего) project-слайса.
+	ProjectInWorkspace(ctx context.Context, workspaceID, projectID string) (bool, error)
+}
+
 // Компайл-тайм проверки соответствия конкретных репозиториев интерфейсам.
 var (
 	_ UserRepository      = (*UserRepo)(nil)
@@ -103,5 +121,6 @@ var (
 	_ WorkspaceRepository = (*WorkspaceRepo)(nil)
 	_ TeamRepository      = (*TeamRepo)(nil)
 	_ StatusRepository    = (*StatusRepo)(nil)
+	_ IssueRepository     = (*IssueRepo)(nil)
 	_ Store               = (*Repositories)(nil)
 )
