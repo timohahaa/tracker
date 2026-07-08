@@ -7,6 +7,8 @@ import (
 	"github.com/timohahaa/tracker/internal/model"
 )
 
+//go:generate go tool mockgen -destination=mocks/mocks.go -package=repomocks github.com/timohahaa/tracker/internal/repository Store,UserRepository,SessionRepository,TokenRepository,WorkspaceRepository
+
 // Интерфейсы репозиториев — шов между service и repository. Конкретные *XRepo
 // реализуют их структурно; сервисы работают через интерфейсы, что позволяет
 // подменять реализацию в unit-тестах. Растут вместе с методами репозиториев.
