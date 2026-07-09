@@ -155,6 +155,60 @@ func TestListIssues_NoMoreLeavesCursorNil(t *testing.T) {
 	}
 }
 
+// validCursorUUID — корректный UUID для поля Cursor.ID в тестах курсора.
+const validCursorUUID = "11111111-1111-1111-1111-111111111111"
+
+func TestListIssues_CursorTypeMismatchPriority(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	store := repomocks.NewMockStore(ctrl)
+	// Issue().List не вызывается: курсор несовместим с sort=priority.
+
+	// Курсор от date-сортировки (таймстамп) переиспользован с sort=priority:
+	// значение обязано быть int-рангом.
+	cur := &model.Cursor{Value: "2026-07-08T10:00:00Z", ID: validCursorUUID}
+	_, err := newIssueService(store).ListIssues(context.Background(), "ws-1", model.IssueFilter{}, model.Page{Sort: "priority", Cursor: cur})
+	assertAppErrCode(t, err, errs.CodeValidation)
+}
+
+func TestListIssues_CursorTypeMismatchDate(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	store := repomocks.NewMockStore(ctrl)
+	// Issue().List не вызывается: курсор несовместим с sort=updated_at.
+
+	// Курсор от priority-сортировки (int-ранг "3") переиспользован с датой:
+	// значение обязано парситься как RFC3339Nano.
+	cur := &model.Cursor{Value: "3", ID: validCursorUUID}
+	_, err := newIssueService(store).ListIssues(context.Background(), "ws-1", model.IssueFilter{}, model.Page{Sort: "updated_at", Cursor: cur})
+	assertAppErrCode(t, err, errs.CodeValidation)
+}
+
+func TestListIssues_CursorNonUUIDID(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	store := repomocks.NewMockStore(ctrl)
+	// Issue().List не вызывается: Cursor.ID не UUID.
+
+	cur := &model.Cursor{Value: "2026-07-08T10:00:00Z", ID: "not-a-uuid"}
+	_, err := newIssueService(store).ListIssues(context.Background(), "ws-1", model.IssueFilter{}, model.Page{Sort: "updated_at", Cursor: cur})
+	assertAppErrCode(t, err, errs.CodeValidation)
+}
+
+func TestListIssues_ValidCursorPassesThrough(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	store := repomocks.NewMockStore(ctrl)
+	issues := repomocks.NewMockIssueRepository(ctrl)
+	store.EXPECT().Issue().Return(issues).AnyTimes()
+
+	// Валидный priority-курсор (int-ранг + UUID) должен дойти до репозитория.
+	// List возвращает пустой набор → enrichListAssignees short-circuit по len==0,
+	// поэтому ListAssigneesByIssues не дёргается.
+	issues.EXPECT().List(gomock.Any(), "ws-1", gomock.Any(), gomock.Any()).Return(nil, nil)
+
+	cur := &model.Cursor{Value: "2", ID: validCursorUUID}
+	if _, err := newIssueService(store).ListIssues(context.Background(), "ws-1", model.IssueFilter{}, model.Page{Sort: "priority", Cursor: cur}); err != nil {
+		t.Fatalf("ListIssues: %v", err)
+	}
+}
+
 func TestListIssues_PriorityCursorEncodesRank(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	store := repomocks.NewMockStore(ctrl)

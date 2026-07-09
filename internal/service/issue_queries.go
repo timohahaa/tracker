@@ -5,6 +5,8 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/timohahaa/tracker/internal/errs"
 	"github.com/timohahaa/tracker/internal/model"
 )
@@ -44,6 +46,12 @@ type IssueListResult struct {
 func (s *IssueService) ListIssues(ctx context.Context, workspaceID string, filter model.IssueFilter, page model.Page) (IssueListResult, error) {
 	page, err := normalizePage(page)
 	if err != nil {
+		return IssueListResult{}, err
+	}
+	// Курсор непрозрачен и не привязан к типу sort: клиент может переиспользовать
+	// курсор от другой сортировки. Валидируем его содержимое под текущий sort,
+	// иначе несовместимый ::cast упадёт в Postgres как 500 вместо 400.
+	if err := validateCursor(page.Cursor, page.Sort); err != nil {
 		return IssueListResult{}, err
 	}
 
@@ -121,6 +129,37 @@ func normalizePage(page model.Page) (model.Page, error) {
 		})
 	}
 	return page, nil
+}
+
+// validateCursor проверяет, что содержимое курсора совместимо с типом sort
+// (иначе ::cast в репозитории упадёт в Postgres → 500). ID обязан быть UUID;
+// значение — int-ранг для priority или RFC3339Nano-таймстамп для дат.
+// Несовместимый/битый курсор → errs.Validation (400). nil-курсор допустим.
+func validateCursor(c *model.Cursor, sort string) error {
+	if c == nil {
+		return nil
+	}
+	invalid := func() error {
+		return errs.Validation("invalid cursor", errs.FieldError{
+			Field:   "cursor",
+			Reason:  "invalid",
+			Message: "malformed cursor",
+		})
+	}
+	if _, err := uuid.Parse(c.ID); err != nil {
+		return invalid()
+	}
+	switch sort {
+	case "priority":
+		if _, err := strconv.Atoi(c.Value); err != nil {
+			return invalid()
+		}
+	default: // created_at / updated_at
+		if _, err := time.Parse(cursorTimeLayout, c.Value); err != nil {
+			return invalid()
+		}
+	}
+	return nil
 }
 
 // sortValue возвращает значение поля сортировки последнего элемента для курсора.
