@@ -188,6 +188,68 @@ func TestCreateAndGetIssue(t *testing.T) {
 	_ = resp.Body.Close()
 }
 
+// TestIssueMalformedIDs проверяет, что мусорные UUID в теле и в path отсекаются
+// на границе (400), а пустая строка project_id трактуется как «без проекта».
+func TestIssueMalformedIDs(t *testing.T) {
+	t.Parallel()
+	srv, cookieName := setupServer(t)
+	db := dbtest.Open(t)
+	client := srv.Client()
+
+	wsID := dbtest.SeedWorkspace(t, db)
+	creator := seedMember(t, db, cookieName, wsID, model.WorkspaceRoleMember)
+
+	teamsURL := srv.URL + "/api/workspaces/" + wsID + "/teams"
+	teamID, _ := createTeam(t, client, db, teamsURL, creator.cookie)
+
+	issuesURL := srv.URL + "/api/workspaces/" + wsID + "/issues"
+
+	// team_id не-UUID → 400 (валидация тела)
+	resp := doJSON(t, client, http.MethodPost, issuesURL, map[string]any{"team_id": "garbage", "title": "X"}, creator.cookie)
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("garbage team_id: status = %d, want 400", resp.StatusCode)
+	}
+	_ = resp.Body.Close()
+
+	// project_id не-UUID → 400
+	resp = doJSON(t, client, http.MethodPost, issuesURL, map[string]any{"team_id": teamID, "title": "X", "project_id": "garbage"}, creator.cookie)
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("garbage project_id: status = %d, want 400", resp.StatusCode)
+	}
+	_ = resp.Body.Close()
+
+	// project_id пустая строка → нормализуется в nil → без проекта, 201
+	resp = doJSON(t, client, http.MethodPost, issuesURL, map[string]any{"team_id": teamID, "title": "NoProject", "project_id": ""}, creator.cookie)
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("empty project_id: status = %d, want 201", resp.StatusCode)
+	}
+	var created struct {
+		ID        string  `json:"id"`
+		ProjectID *string `json:"project_id"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&created); err != nil {
+		t.Fatalf("decode created: %v", err)
+	}
+	_ = resp.Body.Close()
+	if created.ProjectID != nil {
+		t.Fatalf("empty project_id: project_id = %v, want nil", *created.ProjectID)
+	}
+
+	// PATCH с мусорным project_id → 400
+	resp = doJSON(t, client, http.MethodPatch, issuesURL+"/"+created.ID, map[string]any{"project_id": "garbage"}, creator.cookie)
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("patch garbage project_id: status = %d, want 400", resp.StatusCode)
+	}
+	_ = resp.Body.Close()
+
+	// DELETE assignee с не-UUID userID в path → 400
+	resp = doJSON(t, client, http.MethodDelete, issuesURL+"/"+created.ID+"/assignees/garbage", nil, creator.cookie)
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("garbage assignee userID: status = %d, want 400", resp.StatusCode)
+	}
+	_ = resp.Body.Close()
+}
+
 func TestIssueCreateAuthorization(t *testing.T) {
 	t.Parallel()
 	srv, cookieName := setupServer(t)

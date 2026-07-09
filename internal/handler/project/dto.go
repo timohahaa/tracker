@@ -74,11 +74,21 @@ func parseListQuery(r *http.Request) (model.Page, error) {
 	}, nil
 }
 
+// nilIfEmpty нормализует опциональный id: пустая строка трактуется как «не задано»
+// (nil). Валидатор ловит только непустой мусор (omitempty,uuid), поэтому "" здесь
+// приводим к nil, чтобы он не дошёл до БД и не спровоцировал 22P02 → 500.
+func nilIfEmpty(s *string) *string {
+	if s == nil || *s == "" {
+		return nil
+	}
+	return s
+}
+
 func (r createProjectRequest) toParams() service.CreateProjectParams {
 	return service.CreateProjectParams{
 		Name:        r.Name,
 		Description: r.Description,
-		LeadID:      r.LeadID,
+		LeadID:      nilIfEmpty(r.LeadID),
 		Status:      model.ProjectStatus(r.Status),
 		TeamIDs:     r.TeamIDs,
 	}
@@ -93,7 +103,7 @@ func (r updateProjectRequest) toParams() service.UpdateProjectParams {
 	return service.UpdateProjectParams{
 		Name:        r.Name,
 		Description: r.Description,
-		LeadID:      r.LeadID,
+		LeadID:      nilIfEmpty(r.LeadID),
 		Status:      status,
 		TeamIDs:     r.TeamIDs,
 	}

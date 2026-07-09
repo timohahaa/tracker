@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 
 	"github.com/timohahaa/tracker/internal/errs"
 	"github.com/timohahaa/tracker/internal/model"
@@ -62,4 +63,19 @@ func RequireQuery(r *http.Request, key string) (string, error) {
 // PathParam возвращает path-параметр chi по имени.
 func PathParam(r *http.Request, key string) string {
 	return chi.URLParam(r, key)
+}
+
+// PathUUID читает path-параметр и требует, чтобы он был валидным UUID.
+// Парсинг на границе: невалидный id не доходит до БД (иначе Postgres вернул бы
+// 22P02 → 500), а сразу отдаётся как errs.Validation (400).
+func PathUUID(r *http.Request, key string) (string, error) {
+	v := chi.URLParam(r, key)
+	if _, err := uuid.Parse(v); err != nil {
+		return "", errs.Validation("invalid path parameter", errs.FieldError{
+			Field:   key,
+			Reason:  "uuid",
+			Message: "must be a valid UUID",
+		})
+	}
+	return v, nil
 }

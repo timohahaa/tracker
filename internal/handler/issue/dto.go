@@ -18,11 +18,11 @@ const dateLayout = "2006-01-02"
 // createIssueRequest — тело POST /issues. team_id/title обязательны, остальное
 // опционально. due_date — дата в формате YYYY-MM-DD.
 type createIssueRequest struct {
-	TeamID      string  `json:"team_id" validate:"required"`
+	TeamID      string  `json:"team_id" validate:"required,uuid"`
 	Title       string  `json:"title" validate:"required,min=1"`
 	Description *string `json:"description"`
-	StatusID    *string `json:"status_id"`
-	ProjectID   *string `json:"project_id"`
+	StatusID    *string `json:"status_id" validate:"omitempty,uuid"`
+	ProjectID   *string `json:"project_id" validate:"omitempty,uuid"`
 	Priority    string  `json:"priority" validate:"omitempty,oneof=none urgent high medium low"`
 	DueDate     *string `json:"due_date" validate:"omitempty,datetime=2006-01-02"`
 }
@@ -34,8 +34,8 @@ type createIssueRequest struct {
 type updateIssueRequest struct {
 	Title       *string          `json:"title" validate:"omitempty,min=1"`
 	Description *string          `json:"description"`
-	StatusID    *string          `json:"status_id"`
-	ProjectID   *string          `json:"project_id"`
+	StatusID    *string          `json:"status_id" validate:"omitempty,uuid"`
+	ProjectID   *string          `json:"project_id" validate:"omitempty,uuid"`
 	Priority    *string          `json:"priority" validate:"omitempty,oneof=none urgent high medium low"`
 	DueDate     *string          `json:"due_date" validate:"omitempty,datetime=2006-01-02"`
 	Assignees   *[]assigneeInput `json:"assignees" validate:"omitempty,dive"`
@@ -187,6 +187,16 @@ func parseListQuery(r *http.Request) (model.IssueFilter, model.Page, error) {
 	return filter, page, nil
 }
 
+// nilIfEmpty нормализует опциональный id: пустая строка трактуется как «не задано»
+// (nil). Валидатор ловит только непустой мусор (omitempty,uuid), поэтому "" здесь
+// приводим к nil, чтобы он не дошёл до БД и не спровоцировал 22P02 → 500.
+func nilIfEmpty(s *string) *string {
+	if s == nil || *s == "" {
+		return nil
+	}
+	return s
+}
+
 // optStr возвращает *string для непустого значения, иначе nil (фильтр не задан).
 func optStr(s string) *string {
 	if s == "" {
@@ -257,8 +267,8 @@ func (r createIssueRequest) toParams() (service.CreateIssueParams, error) {
 		TeamID:      r.TeamID,
 		Title:       r.Title,
 		Description: r.Description,
-		StatusID:    r.StatusID,
-		ProjectID:   r.ProjectID,
+		StatusID:    nilIfEmpty(r.StatusID),
+		ProjectID:   nilIfEmpty(r.ProjectID),
 		Priority:    model.Priority(r.Priority),
 		DueDate:     due,
 	}, nil
@@ -285,8 +295,8 @@ func (r updateIssueRequest) toParams() (service.UpdateIssueParams, error) {
 	return service.UpdateIssueParams{
 		Title:       r.Title,
 		Description: r.Description,
-		StatusID:    r.StatusID,
-		ProjectID:   r.ProjectID,
+		StatusID:    nilIfEmpty(r.StatusID),
+		ProjectID:   nilIfEmpty(r.ProjectID),
 		Priority:    priority,
 		DueDate:     due,
 		Assignees:   assignees,

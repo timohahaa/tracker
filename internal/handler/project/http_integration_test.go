@@ -174,6 +174,44 @@ func TestProjectCRUD(t *testing.T) {
 	_ = resp.Body.Close()
 }
 
+// TestProjectMalformedID проверяет, что не-UUID в path парсится на границе и
+// отдаётся как 400, а не доходит до БД (иначе 22P02 → 500).
+func TestProjectMalformedID(t *testing.T) {
+	t.Parallel()
+	srv, cookieName := setupServer(t)
+	db := dbtest.Open(t)
+	client := srv.Client()
+
+	wsID := dbtest.SeedWorkspace(t, db)
+	cleanupProjects(t, db, wsID)
+	owner := seedMember(t, db, cookieName, wsID, model.WorkspaceRoleMember)
+
+	badURL := srv.URL + "/api/workspaces/" + wsID + "/projects/garbage"
+
+	cases := []struct {
+		method string
+		body   any
+	}{
+		{http.MethodGet, nil},
+		{http.MethodPatch, map[string]any{"status": "in_progress"}},
+		{http.MethodDelete, nil},
+	}
+	for _, tc := range cases {
+		resp := doJSON(t, client, tc.method, badURL, tc.body, owner.cookie)
+		if resp.StatusCode != http.StatusBadRequest {
+			t.Fatalf("%s malformed projectID: status = %d, want 400", tc.method, resp.StatusCode)
+		}
+		_ = resp.Body.Close()
+	}
+
+	// не-UUID workspaceID тоже отсекается на границе (middleware) → 400
+	resp := doJSON(t, client, http.MethodGet, srv.URL+"/api/workspaces/garbage/projects", nil, owner.cookie)
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("malformed workspaceID: status = %d, want 400", resp.StatusCode)
+	}
+	_ = resp.Body.Close()
+}
+
 func TestProjectDeleteAuthorization(t *testing.T) {
 	t.Parallel()
 	srv, cookieName := setupServer(t)

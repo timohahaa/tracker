@@ -4,7 +4,9 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 
+	"github.com/timohahaa/tracker/internal/errs"
 	"github.com/timohahaa/tracker/internal/handler/httpx"
 )
 
@@ -15,6 +17,14 @@ import (
 func (m *Middleware) LoadWorkspace(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		workspaceID := chi.URLParam(r, "workspaceID")
+		if _, err := uuid.Parse(workspaceID); err != nil {
+			httpx.RespondError(w, errs.Validation("invalid path parameter", errs.FieldError{
+				Field:   "workspaceID",
+				Reason:  "uuid",
+				Message: "must be a valid UUID",
+			}))
+			return
+		}
 		user := UserFromContext(r.Context())
 
 		ws, member, err := m.services.Workspace.Load(r.Context(), workspaceID, user.ID)

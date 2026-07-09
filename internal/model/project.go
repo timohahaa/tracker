@@ -12,7 +12,7 @@ const (
 	ProjectStatusCanceled   ProjectStatus = "canceled"
 )
 
-// Project — проект (schema tracker.projects). Может охватывать несколько команд.
+// Project — проект (таблица tracker.project). Может охватывать несколько команд.
 type Project struct {
 	ID          string        `db:"id"`
 	WorkspaceID string        `db:"workspace_id"`
@@ -25,7 +25,7 @@ type Project struct {
 	DeletedAt   *time.Time    `db:"deleted_at"`
 }
 
-// ProjectTeam — связь проект ↔ команда (schema tracker.project_teams).
+// ProjectTeam — связь проект ↔ команда (таблица tracker.project_team).
 type ProjectTeam struct {
 	ProjectID string     `db:"project_id"`
 	TeamID    string     `db:"team_id"`

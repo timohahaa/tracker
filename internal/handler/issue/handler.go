@@ -246,7 +246,11 @@ func (h *Handler) addAssignee(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) removeAssignee(w http.ResponseWriter, r *http.Request) {
 	actor := middleware.MemberFromContext(r.Context())
 	ref := httpx.PathParam(r, "issueID")
-	userID := httpx.PathParam(r, "userID")
+	userID, err := httpx.PathUUID(r, "userID")
+	if err != nil {
+		httpx.RespondError(w, err)
+		return
+	}
 	if err := h.services.Issue.RemoveAssignee(r.Context(), actor, ref, userID); err != nil {
 		httpx.RespondError(w, err)
 		return
@@ -272,7 +276,11 @@ func (h *Handler) removeAssignee(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) setPrimary(w http.ResponseWriter, r *http.Request) {
 	actor := middleware.MemberFromContext(r.Context())
 	ref := httpx.PathParam(r, "issueID")
-	userID := httpx.PathParam(r, "userID")
+	userID, err := httpx.PathUUID(r, "userID")
+	if err != nil {
+		httpx.RespondError(w, err)
+		return
+	}
 	issue, err := h.services.Issue.SetPrimary(r.Context(), actor, ref, userID)
 	if err != nil {
 		httpx.RespondError(w, err)

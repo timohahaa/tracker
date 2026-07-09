@@ -205,9 +205,11 @@ func (s *IssueService) UpdateIssue(ctx context.Context, actor model.WorkspaceMem
 		issue.DueDate = params.DueDate
 	}
 
-	// Привязка к непустому проекту требует авто-добавления команды задачи в
-	// project_teams («add team to project»), поэтому идёт транзакционным путём.
-	setProject := params.ProjectID != nil && *params.ProjectID != ""
+	// Привязка к проекту требует авто-добавления команды задачи в project_teams
+	// («add team to project»), поэтому идёт транзакционным путём. project_id
+	// нормализуется на границе (nilIfEmpty + omitempty,uuid), поэтому здесь
+	// достаточно проверки на nil — симметрично CreateIssue.
+	setProject := params.ProjectID != nil
 
 	// Ни ассайни, ни привязку к проекту не трогаем — простой путь (одиночный
 	// UPDATE без транзакции).

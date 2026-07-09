@@ -126,7 +126,11 @@ func (h *Handler) updateMember(w http.ResponseWriter, r *http.Request) {
 	}
 
 	actor := middleware.MemberFromContext(r.Context())
-	userID := httpx.PathParam(r, "userID")
+	userID, err := httpx.PathUUID(r, "userID")
+	if err != nil {
+		httpx.RespondError(w, err)
+		return
+	}
 	member, err := h.services.Workspace.UpdateMember(r.Context(), actor, userID, req.toParams())
 	if err != nil {
 		httpx.RespondError(w, err)
@@ -150,7 +154,11 @@ func (h *Handler) updateMember(w http.ResponseWriter, r *http.Request) {
 //	@Router			/api/workspaces/{workspaceID}/members/{userID} [delete]
 func (h *Handler) deleteMember(w http.ResponseWriter, r *http.Request) {
 	actor := middleware.MemberFromContext(r.Context())
-	userID := httpx.PathParam(r, "userID")
+	userID, err := httpx.PathUUID(r, "userID")
+	if err != nil {
+		httpx.RespondError(w, err)
+		return
+	}
 	if err := h.services.Workspace.RemoveMember(r.Context(), actor, userID); err != nil {
 		httpx.RespondError(w, err)
 		return

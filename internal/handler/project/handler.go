@@ -107,7 +107,11 @@ func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
 //	@Router			/api/workspaces/{workspaceID}/projects/{projectID} [get]
 func (h *Handler) get(w http.ResponseWriter, r *http.Request) {
 	ws := middleware.WorkspaceFromContext(r.Context())
-	projectID := httpx.PathParam(r, "projectID")
+	projectID, err := httpx.PathUUID(r, "projectID")
+	if err != nil {
+		httpx.RespondError(w, err)
+		return
+	}
 	project, err := h.services.Project.GetProject(r.Context(), ws.ID, projectID)
 	if err != nil {
 		httpx.RespondError(w, err)
@@ -139,7 +143,11 @@ func (h *Handler) update(w http.ResponseWriter, r *http.Request) {
 	}
 
 	actor := middleware.MemberFromContext(r.Context())
-	projectID := httpx.PathParam(r, "projectID")
+	projectID, err := httpx.PathUUID(r, "projectID")
+	if err != nil {
+		httpx.RespondError(w, err)
+		return
+	}
 	project, err := h.services.Project.UpdateProject(r.Context(), actor, projectID, req.toParams())
 	if err != nil {
 		httpx.RespondError(w, err)
@@ -162,7 +170,11 @@ func (h *Handler) update(w http.ResponseWriter, r *http.Request) {
 //	@Router			/api/workspaces/{workspaceID}/projects/{projectID} [delete]
 func (h *Handler) delete(w http.ResponseWriter, r *http.Request) {
 	actor := middleware.MemberFromContext(r.Context())
-	projectID := httpx.PathParam(r, "projectID")
+	projectID, err := httpx.PathUUID(r, "projectID")
+	if err != nil {
+		httpx.RespondError(w, err)
+		return
+	}
 	if err := h.services.Project.DeleteProject(r.Context(), actor, projectID); err != nil {
 		httpx.RespondError(w, err)
 		return

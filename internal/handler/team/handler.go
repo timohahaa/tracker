@@ -106,7 +106,11 @@ func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
 //	@Router			/api/workspaces/{workspaceID}/teams/{teamID} [get]
 func (h *Handler) get(w http.ResponseWriter, r *http.Request) {
 	ws := middleware.WorkspaceFromContext(r.Context())
-	teamID := httpx.PathParam(r, "teamID")
+	teamID, err := httpx.PathUUID(r, "teamID")
+	if err != nil {
+		httpx.RespondError(w, err)
+		return
+	}
 	team, err := h.services.Team.GetTeam(r.Context(), ws.ID, teamID)
 	if err != nil {
 		httpx.RespondError(w, err)
@@ -140,7 +144,11 @@ func (h *Handler) update(w http.ResponseWriter, r *http.Request) {
 	}
 
 	actor := middleware.MemberFromContext(r.Context())
-	teamID := httpx.PathParam(r, "teamID")
+	teamID, err := httpx.PathUUID(r, "teamID")
+	if err != nil {
+		httpx.RespondError(w, err)
+		return
+	}
 	team, err := h.services.Team.UpdateTeam(r.Context(), actor, teamID, req.toParams())
 	if err != nil {
 		httpx.RespondError(w, err)
@@ -163,7 +171,11 @@ func (h *Handler) update(w http.ResponseWriter, r *http.Request) {
 //	@Router			/api/workspaces/{workspaceID}/teams/{teamID} [delete]
 func (h *Handler) delete(w http.ResponseWriter, r *http.Request) {
 	actor := middleware.MemberFromContext(r.Context())
-	teamID := httpx.PathParam(r, "teamID")
+	teamID, err := httpx.PathUUID(r, "teamID")
+	if err != nil {
+		httpx.RespondError(w, err)
+		return
+	}
 	if err := h.services.Team.DeleteTeam(r.Context(), actor, teamID); err != nil {
 		httpx.RespondError(w, err)
 		return
@@ -185,7 +197,11 @@ func (h *Handler) delete(w http.ResponseWriter, r *http.Request) {
 //	@Router			/api/workspaces/{workspaceID}/teams/{teamID}/members [get]
 func (h *Handler) listMembers(w http.ResponseWriter, r *http.Request) {
 	ws := middleware.WorkspaceFromContext(r.Context())
-	teamID := httpx.PathParam(r, "teamID")
+	teamID, err := httpx.PathUUID(r, "teamID")
+	if err != nil {
+		httpx.RespondError(w, err)
+		return
+	}
 	members, err := h.services.Team.ListMembers(r.Context(), ws.ID, teamID)
 	if err != nil {
 		httpx.RespondError(w, err)
@@ -218,7 +234,11 @@ func (h *Handler) addMember(w http.ResponseWriter, r *http.Request) {
 	}
 
 	actor := middleware.MemberFromContext(r.Context())
-	teamID := httpx.PathParam(r, "teamID")
+	teamID, err := httpx.PathUUID(r, "teamID")
+	if err != nil {
+		httpx.RespondError(w, err)
+		return
+	}
 	member, err := h.services.Team.AddMember(r.Context(), actor, teamID, req.toParams())
 	if err != nil {
 		httpx.RespondError(w, err)
@@ -242,8 +262,16 @@ func (h *Handler) addMember(w http.ResponseWriter, r *http.Request) {
 //	@Router			/api/workspaces/{workspaceID}/teams/{teamID}/members/{userID} [delete]
 func (h *Handler) removeMember(w http.ResponseWriter, r *http.Request) {
 	actor := middleware.MemberFromContext(r.Context())
-	teamID := httpx.PathParam(r, "teamID")
-	userID := httpx.PathParam(r, "userID")
+	teamID, err := httpx.PathUUID(r, "teamID")
+	if err != nil {
+		httpx.RespondError(w, err)
+		return
+	}
+	userID, err := httpx.PathUUID(r, "userID")
+	if err != nil {
+		httpx.RespondError(w, err)
+		return
+	}
 	if err := h.services.Team.RemoveMember(r.Context(), actor, teamID, userID); err != nil {
 		httpx.RespondError(w, err)
 		return
@@ -265,7 +293,11 @@ func (h *Handler) removeMember(w http.ResponseWriter, r *http.Request) {
 //	@Router			/api/workspaces/{workspaceID}/teams/{teamID}/statuses [get]
 func (h *Handler) listStatuses(w http.ResponseWriter, r *http.Request) {
 	ws := middleware.WorkspaceFromContext(r.Context())
-	teamID := httpx.PathParam(r, "teamID")
+	teamID, err := httpx.PathUUID(r, "teamID")
+	if err != nil {
+		httpx.RespondError(w, err)
+		return
+	}
 	statuses, err := h.services.Team.ListStatuses(r.Context(), ws.ID, teamID)
 	if err != nil {
 		httpx.RespondError(w, err)
@@ -299,7 +331,11 @@ func (h *Handler) createStatus(w http.ResponseWriter, r *http.Request) {
 	}
 
 	actor := middleware.MemberFromContext(r.Context())
-	teamID := httpx.PathParam(r, "teamID")
+	teamID, err := httpx.PathUUID(r, "teamID")
+	if err != nil {
+		httpx.RespondError(w, err)
+		return
+	}
 	status, err := h.services.Team.CreateStatus(r.Context(), actor, teamID, req.toParams())
 	if err != nil {
 		httpx.RespondError(w, err)
@@ -334,8 +370,16 @@ func (h *Handler) updateStatus(w http.ResponseWriter, r *http.Request) {
 	}
 
 	actor := middleware.MemberFromContext(r.Context())
-	teamID := httpx.PathParam(r, "teamID")
-	statusID := httpx.PathParam(r, "statusID")
+	teamID, err := httpx.PathUUID(r, "teamID")
+	if err != nil {
+		httpx.RespondError(w, err)
+		return
+	}
+	statusID, err := httpx.PathUUID(r, "statusID")
+	if err != nil {
+		httpx.RespondError(w, err)
+		return
+	}
 	status, err := h.services.Team.UpdateStatus(r.Context(), actor, teamID, statusID, req.toParams())
 	if err != nil {
 		httpx.RespondError(w, err)
@@ -360,8 +404,16 @@ func (h *Handler) updateStatus(w http.ResponseWriter, r *http.Request) {
 //	@Router			/api/workspaces/{workspaceID}/teams/{teamID}/statuses/{statusID} [delete]
 func (h *Handler) deleteStatus(w http.ResponseWriter, r *http.Request) {
 	actor := middleware.MemberFromContext(r.Context())
-	teamID := httpx.PathParam(r, "teamID")
-	statusID := httpx.PathParam(r, "statusID")
+	teamID, err := httpx.PathUUID(r, "teamID")
+	if err != nil {
+		httpx.RespondError(w, err)
+		return
+	}
+	statusID, err := httpx.PathUUID(r, "statusID")
+	if err != nil {
+		httpx.RespondError(w, err)
+		return
+	}
 	if err := h.services.Team.DeleteStatus(r.Context(), actor, teamID, statusID); err != nil {
 		httpx.RespondError(w, err)
 		return

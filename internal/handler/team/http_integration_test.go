@@ -220,6 +220,35 @@ func TestTeamMutationsAuthorization(t *testing.T) {
 	_ = resp.Body.Close()
 }
 
+// TestTeamMalformedID проверяет, что не-UUID teamID парсится на границе → 400
+// (а не доходит до БД с 22P02 → 500). Валидный, но несуществующий id → 404.
+func TestTeamMalformedID(t *testing.T) {
+	t.Parallel()
+	srv, cookieName := setupServer(t)
+	db := dbtest.Open(t)
+	client := srv.Client()
+
+	wsID := dbtest.SeedWorkspace(t, db)
+	cleanupTeams(t, db, wsID)
+	member := seedMember(t, db, cookieName, wsID, model.WorkspaceRoleMember)
+
+	teamsURL := srv.URL + "/api/workspaces/" + wsID + "/teams"
+
+	// не-UUID teamID → 400
+	resp := doJSON(t, client, http.MethodGet, teamsURL+"/garbage", nil, member.cookie)
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("malformed teamID: status = %d, want 400", resp.StatusCode)
+	}
+	_ = resp.Body.Close()
+
+	// не-UUID statusID во вложенном пути → 400
+	resp = doJSON(t, client, http.MethodDelete, teamsURL+"/"+uuid.NewString()+"/statuses/garbage", nil, member.cookie)
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("malformed statusID: status = %d, want 400", resp.StatusCode)
+	}
+	_ = resp.Body.Close()
+}
+
 func TestCreateStatusPositionConflict(t *testing.T) {
 	t.Parallel()
 	srv, cookieName := setupServer(t)
