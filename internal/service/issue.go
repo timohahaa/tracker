@@ -100,6 +100,14 @@ func (s *IssueService) CreateIssue(ctx context.Context, actor model.WorkspaceMem
 			DueDate:     params.DueDate,
 			IssueNumber: number,
 		})
+		if err != nil {
+			return err
+		}
+		// «Add team to project» (data-model): привязка задачи к проекту
+		// автоматически добавляет её команду в project_teams, если её там нет.
+		if params.ProjectID != nil {
+			_, err = tx.Project().AddTeam(ctx, *params.ProjectID, team.ID)
+		}
 		return err
 	})
 	if err != nil {
@@ -197,8 +205,13 @@ func (s *IssueService) UpdateIssue(ctx context.Context, actor model.WorkspaceMem
 		issue.DueDate = params.DueDate
 	}
 
-	// Ассайни не трогаем — простой путь (одиночный UPDATE без транзакции).
-	if params.Assignees == nil {
+	// Привязка к непустому проекту требует авто-добавления команды задачи в
+	// project_teams («add team to project»), поэтому идёт транзакционным путём.
+	setProject := params.ProjectID != nil && *params.ProjectID != ""
+
+	// Ни ассайни, ни привязку к проекту не трогаем — простой путь (одиночный
+	// UPDATE без транзакции).
+	if params.Assignees == nil && !setProject {
 		updated, err := s.repos.Issue().Update(ctx, issue)
 		if err != nil {
 			return model.IssueDetails{}, err
@@ -214,11 +227,15 @@ func (s *IssueService) UpdateIssue(ctx context.Context, actor model.WorkspaceMem
 		return out, nil
 	}
 
-	// Replace-семантика набора: валидируем и заменяем в одной транзакции вместе
-	// с обновлением полей задачи.
-	set, err := s.validateAssigneeSet(ctx, issue.TeamID, *params.Assignees)
-	if err != nil {
-		return model.IssueDetails{}, err
+	// Replace-семантика набора ассайни (если задан) + авто-добавление команды в
+	// проект — всё в одной транзакции с обновлением полей задачи.
+	var set []AssigneeInput
+	if params.Assignees != nil {
+		var verr error
+		set, verr = s.validateAssigneeSet(ctx, issue.TeamID, *params.Assignees)
+		if verr != nil {
+			return model.IssueDetails{}, verr
+		}
 	}
 
 	var updated model.Issue
@@ -228,7 +245,15 @@ func (s *IssueService) UpdateIssue(ctx context.Context, actor model.WorkspaceMem
 		if uerr != nil {
 			return uerr
 		}
-		return replaceAssignees(ctx, tx, issue.ID, set)
+		if setProject {
+			if _, aerr := tx.Project().AddTeam(ctx, *params.ProjectID, issue.TeamID); aerr != nil {
+				return aerr
+			}
+		}
+		if params.Assignees != nil {
+			return replaceAssignees(ctx, tx, issue.ID, set)
+		}
+		return nil
 	})
 	if err != nil {
 		return model.IssueDetails{}, err

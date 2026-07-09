@@ -7,7 +7,7 @@ import (
 	"github.com/timohahaa/tracker/internal/model"
 )
 
-//go:generate go tool mockgen -destination=mocks/mocks.go -package=repomocks github.com/timohahaa/tracker/internal/repository Store,UserRepository,SessionRepository,TokenRepository,WorkspaceRepository,TeamRepository,StatusRepository,IssueRepository
+//go:generate go tool mockgen -destination=mocks/mocks.go -package=repomocks github.com/timohahaa/tracker/internal/repository Store,UserRepository,SessionRepository,TokenRepository,WorkspaceRepository,TeamRepository,StatusRepository,IssueRepository,ProjectRepository
 
 // Интерфейсы репозиториев — шов между service и repository. Конкретные *XRepo
 // реализуют их структурно; сервисы работают через интерфейсы, что позволяет
@@ -26,7 +26,7 @@ type Store interface {
 	Team() TeamRepository
 	Status() StatusRepository
 	Issue() IssueRepository
-	Project() *ProjectRepo
+	Project() ProjectRepository
 	Label() *LabelRepo
 	Integration() *IntegrationRepo
 	Attachment() *AttachmentRepo
@@ -131,6 +131,28 @@ type IssueRepository interface {
 	SetPrimary(ctx context.Context, issueID, userID string) error
 }
 
+// ProjectRepository — доступ к tracker.project и tracker.project_team.
+type ProjectRepository interface {
+	Create(ctx context.Context, p model.Project) (model.Project, error)
+	GetByID(ctx context.Context, workspaceID, projectID string) (model.Project, error)
+	Update(ctx context.Context, p model.Project) (model.Project, error)
+	Delete(ctx context.Context, projectID string) error
+
+	// List возвращает активные проекты workspace с keyset-пагинацией по
+	// (sort, id). Выбирается page.Limit+1 строк — сервис по «лишней» строке
+	// вычисляет has_more. Команды (project_team) не заполняются — их догружает
+	// сервис батчем (ListTeamsByProjects).
+	List(ctx context.Context, workspaceID string, page model.Page) ([]model.Project, error)
+
+	// Junction tracker.project_team. Гранулярные методы работают и на пуле, и на
+	// транзакции; атомарные операции (replace набора) оркеструются сервисом через
+	// WithTx. Read-методы фильтруют deleted_at IS NULL.
+	ListTeams(ctx context.Context, projectID string) ([]model.ProjectTeam, error)
+	ListTeamsByProjects(ctx context.Context, projectIDs []string) (map[string][]model.ProjectTeam, error)
+	AddTeam(ctx context.Context, projectID, teamID string) (model.ProjectTeam, error)
+	RemoveTeam(ctx context.Context, projectID, teamID string) error
+}
+
 // Компайл-тайм проверки соответствия конкретных репозиториев интерфейсам.
 var (
 	_ UserRepository      = (*UserRepo)(nil)
@@ -140,5 +162,6 @@ var (
 	_ TeamRepository      = (*TeamRepo)(nil)
 	_ StatusRepository    = (*StatusRepo)(nil)
 	_ IssueRepository     = (*IssueRepo)(nil)
+	_ ProjectRepository   = (*ProjectRepo)(nil)
 	_ Store               = (*Repositories)(nil)
 )

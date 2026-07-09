@@ -185,6 +185,48 @@ func TestCreateIssue_InvalidProjectValidation(t *testing.T) {
 	assertAppErrCode(t, err, errs.CodeValidation)
 }
 
+func TestCreateIssue_AddsTeamToProject(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	store := repomocks.NewMockStore(ctrl)
+	teams := repomocks.NewMockTeamRepository(ctrl)
+	statuses := repomocks.NewMockStatusRepository(ctrl)
+	issues := repomocks.NewMockIssueRepository(ctrl)
+	projects := repomocks.NewMockProjectRepository(ctrl)
+
+	expectTx(store)
+	store.EXPECT().Team().Return(teams).AnyTimes()
+	store.EXPECT().Status().Return(statuses).AnyTimes()
+	store.EXPECT().Issue().Return(issues).AnyTimes()
+	store.EXPECT().Project().Return(projects).AnyTimes()
+
+	teams.EXPECT().Get(gomock.Any(), "ws-1", "team-1").
+		Return(model.Team{ID: "team-1", WorkspaceID: "ws-1", Key: "ENG"}, nil)
+	teams.EXPECT().GetMember(gomock.Any(), "team-1", "user-1").Return(teamMember(), nil)
+	statuses.EXPECT().Get(gomock.Any(), "team-1", "st-1").
+		Return(model.Status{ID: "st-1", TeamID: "team-1"}, nil)
+	issues.EXPECT().ProjectInWorkspace(gomock.Any(), "ws-1", "proj-1").Return(true, nil)
+	issues.EXPECT().IncrementIssueNumber(gomock.Any(), "team-1").Return(1, nil)
+	issues.EXPECT().Create(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, i model.Issue) (model.Issue, error) {
+			i.ID = "issue-1"
+			return i, nil
+		})
+	// «add team to project»: команда задачи автоматически добавляется в проект.
+	projects.EXPECT().AddTeam(gomock.Any(), "proj-1", "team-1").
+		Return(model.ProjectTeam{ProjectID: "proj-1", TeamID: "team-1"}, nil)
+
+	status := "st-1"
+	project := "proj-1"
+	if _, err := newIssueService(store).CreateIssue(context.Background(), issueActor(), CreateIssueParams{
+		TeamID:    "team-1",
+		Title:     "Task",
+		StatusID:  &status,
+		ProjectID: &project,
+	}); err != nil {
+		t.Fatalf("CreateIssue: %v", err)
+	}
+}
+
 func TestCreateIssue_TeamNotFoundPropagated(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	store := repomocks.NewMockStore(ctrl)

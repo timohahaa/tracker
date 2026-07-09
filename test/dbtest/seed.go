@@ -74,6 +74,36 @@ func SeedTeam(t *testing.T, db *sqlx.DB, workspaceID string) string {
 	return id
 }
 
+// SeedProject вставляет tracker.project в workspace и возвращает её id.
+// Имя уникально на тест.
+func SeedProject(t *testing.T, db *sqlx.DB, workspaceID string) string {
+	t.Helper()
+	name := "project-" + uuid.NewString()
+	var id string
+	err := db.Get(&id, `
+		INSERT INTO tracker.project (workspace_id, name)
+		VALUES ($1, $2) RETURNING id`, workspaceID, name)
+	if err != nil {
+		t.Fatalf("seed project: %s", err)
+	}
+	t.Cleanup(func() { _, _ = db.Exec(`DELETE FROM tracker.project WHERE id = $1`, id) })
+	return id
+}
+
+// SeedProjectTeam привязывает команду к проекту (junction tracker.project_team).
+func SeedProjectTeam(t *testing.T, db *sqlx.DB, projectID, teamID string) {
+	t.Helper()
+	_, err := db.Exec(`
+		INSERT INTO tracker.project_team (project_id, team_id)
+		VALUES ($1, $2)`, projectID, teamID)
+	if err != nil {
+		t.Fatalf("seed project team: %s", err)
+	}
+	t.Cleanup(func() {
+		_, _ = db.Exec(`DELETE FROM tracker.project_team WHERE project_id = $1 AND team_id = $2`, projectID, teamID)
+	})
+}
+
 // SeedTeamMember добавляет участника команды с указанной ролью.
 func SeedTeamMember(t *testing.T, db *sqlx.DB, teamID, userID, role string) {
 	t.Helper()

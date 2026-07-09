@@ -32,3 +32,10 @@ type ProjectTeam struct {
 	CreatedAt time.Time  `db:"created_at"`
 	DeletedAt *time.Time `db:"deleted_at"`
 }
+
+// ProjectDetails — read-модель проекта с догруженными командами. TeamIDs
+// заполняется на уровне сервиса (репо-мапперы её не трогают).
+type ProjectDetails struct {
+	Project
+	TeamIDs []string
+}

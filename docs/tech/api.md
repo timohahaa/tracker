@@ -154,6 +154,16 @@ LIMIT 50
 | PATCH | `/api/workspaces/{workspaceID}/projects/:projectID` | Обновить проект | Member |
 | DELETE | `/api/workspaces/{workspaceID}/projects/:projectID` | Удалить проект | Owner/Admin |
 
+Проект охватывает 1+ команд через junction `project_teams`. В ответе проекта команды отдаются массивом `team_ids`.
+
+Семантика `team_ids` в POST/PATCH (replace-семантика, аналог `assignees` у issue):
+
+- отсутствие поля или `null` = «не трогать команды» (partial update);
+- присланный массив = replace всего набора команд;
+- пустой массив `[]` = отвязать все команды.
+
+При привязке issue к проекту команда задачи автоматически добавляется в `project_teams`, если её там ещё нет (поведение Linear «add team to project»).
+
 ---
 
 ## Labels
