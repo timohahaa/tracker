@@ -247,7 +247,7 @@ func (h *Handler) removeAssignee(w http.ResponseWriter, r *http.Request) {
 	actor := middleware.MemberFromContext(r.Context())
 	ref := httpx.PathParam(r, "issueID")
 	userID := httpx.PathParam(r, "userID")
-	if _, err := h.services.Issue.RemoveAssignee(r.Context(), actor, ref, userID); err != nil {
+	if err := h.services.Issue.RemoveAssignee(r.Context(), actor, ref, userID); err != nil {
 		httpx.RespondError(w, err)
 		return
 	}

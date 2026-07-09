@@ -75,12 +75,17 @@ func (r *IssueRepo) GetAssignee(ctx context.Context, issueID, userID string) (mo
 	return out, nil
 }
 
-// AddAssignee добавляет участника задачи (upsert по composite PK): при повторном
-// добавлении удалённого участника связь восстанавливается (deleted_at = NULL) и
-// обновляется is_primary. Возвращает актуальную строку. Установку primary
-// оркеструет сервис отдельным шагом (ClearPrimary + SetPrimary в транзакции),
-// поэтому конфликт по partial unique idx_tracker_issue_assignee_uniq_primary тут
-// не возникает при is_primary = false.
+// AddAssignee добавляет участника задачи (upsert по composite PK). Управлением
+// «ответственного» метод НЕ занимается — это делает сервис отдельным шагом
+// (ClearPrimary + SetPrimary в транзакции). Поэтому is_primary при апсерте
+// трактуется так:
+//   - активная строка (deleted_at IS NULL) — is_primary НЕ меняется (повторное
+//     добавление участника идемпотентно и не снимает с него ответственность);
+//   - восстановление soft-deleted строки — is_primary берётся из входящего
+//     значения (сервис всегда передаёт false), чтобы не «воскресить» устаревший
+//     is_primary и не нарушить partial unique idx_tracker_issue_assignee_uniq_primary.
+//
+// Возвращает актуальную строку.
 func (r *IssueRepo) AddAssignee(ctx context.Context, a model.IssueAssignee) (model.IssueAssignee, error) {
 	const q = `
 		INSERT INTO tracker.issue_assignee (
@@ -90,7 +95,10 @@ func (r *IssueRepo) AddAssignee(ctx context.Context, a model.IssueAssignee) (mod
 		)
 		VALUES ($1, $2, $3)
 		ON CONFLICT (issue_id, user_id) DO UPDATE SET
-			is_primary = EXCLUDED.is_primary
+			is_primary = CASE
+				WHEN tracker.issue_assignee.deleted_at IS NULL THEN tracker.issue_assignee.is_primary
+				ELSE EXCLUDED.is_primary
+			END
 			, deleted_at = NULL
 			, updated_at = now()
 		RETURNING` + assigneeSelectColumns

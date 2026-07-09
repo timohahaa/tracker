@@ -117,19 +117,7 @@ func (s *IssueService) CreateIssue(ctx context.Context, actor model.WorkspaceMem
 // с догруженными активными assignees. Доступно участнику workspace (проверено в
 // middleware LoadWorkspace).
 func (s *IssueService) GetIssue(ctx context.Context, workspaceID, ref string) (model.IssueDetails, error) {
-	var (
-		details model.IssueDetails
-		err     error
-	)
-	if _, perr := uuid.Parse(ref); perr == nil {
-		details, err = s.repos.Issue().GetByID(ctx, workspaceID, ref)
-	} else {
-		key, number, ok := parseIdentifier(ref)
-		if !ok {
-			return model.IssueDetails{}, errs.NotFound("issue not found")
-		}
-		details, err = s.repos.Issue().GetByIdentifier(ctx, workspaceID, key, number)
-	}
+	details, err := s.resolveIssue(ctx, workspaceID, ref)
 	if err != nil {
 		return model.IssueDetails{}, err
 	}
@@ -137,6 +125,20 @@ func (s *IssueService) GetIssue(ctx context.Context, workspaceID, ref string) (m
 		return model.IssueDetails{}, err
 	}
 	return details, nil
+}
+
+// resolveIssue находит задачу workspace по ссылке (UUID или identifier) БЕЗ
+// догрузки assignees. Используется мутациями, которым на входе нужна только
+// идентичность задачи (ID/TeamID) — enrich там делается один раз на выходе.
+func (s *IssueService) resolveIssue(ctx context.Context, workspaceID, ref string) (model.IssueDetails, error) {
+	if _, err := uuid.Parse(ref); err == nil {
+		return s.repos.Issue().GetByID(ctx, workspaceID, ref)
+	}
+	key, number, ok := parseIdentifier(ref)
+	if !ok {
+		return model.IssueDetails{}, errs.NotFound("issue not found")
+	}
+	return s.repos.Issue().GetByIdentifier(ctx, workspaceID, key, number)
 }
 
 // enrichAssignees догружает активных участников задачи (read-модель

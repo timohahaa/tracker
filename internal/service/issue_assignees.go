@@ -14,7 +14,7 @@ import (
 // транзакции (ClearPrimary + SetPrimary; partial unique нельзя DEFERRABLE).
 // Возвращает обновлённую задачу с активными assignees.
 func (s *IssueService) AddAssignee(ctx context.Context, actor model.WorkspaceMember, ref, userID string, primary bool) (model.IssueDetails, error) {
-	details, err := s.GetIssue(ctx, actor.WorkspaceID, ref)
+	details, err := s.resolveIssue(ctx, actor.WorkspaceID, ref)
 	if err != nil {
 		return model.IssueDetails{}, err
 	}
@@ -42,32 +42,39 @@ func (s *IssueService) AddAssignee(ctx context.Context, actor model.WorkspaceMem
 		return model.IssueDetails{}, err
 	}
 
-	return s.GetIssue(ctx, actor.WorkspaceID, ref)
+	// Поля задачи не менялись — переиспользуем загруженный details, обновив только
+	// набор assignees (без повторного GetByID).
+	if err := s.enrichAssignees(ctx, &details); err != nil {
+		return model.IssueDetails{}, err
+	}
+	return details, nil
 }
 
 // RemoveAssignee убирает участника задачи (soft delete, идемпотентно). Доступно
 // участнику команды задачи. Снятие участника-ответственного оставляет задачу без
-// ответственного (без авто-передачи). Возвращает обновлённую задачу.
-func (s *IssueService) RemoveAssignee(ctx context.Context, actor model.WorkspaceMember, ref, userID string) (model.IssueDetails, error) {
-	details, err := s.GetIssue(ctx, actor.WorkspaceID, ref)
+// ответственного (без авто-передачи). Обновлённый набор не возвращается —
+// эндпоинт отдаёт 204, поэтому финальная догрузка задачи не нужна.
+func (s *IssueService) RemoveAssignee(ctx context.Context, actor model.WorkspaceMember, ref, userID string) error {
+	details, err := s.resolveIssue(ctx, actor.WorkspaceID, ref)
 	if err != nil {
-		return model.IssueDetails{}, err
+		return err
 	}
 	if err := s.requireTeamMember(ctx, details.TeamID, actor.UserID); err != nil {
-		return model.IssueDetails{}, err
+		return err
 	}
-	if err := s.repos.Issue().RemoveAssignee(ctx, details.ID, userID); err != nil {
-		return model.IssueDetails{}, err
-	}
-	return s.GetIssue(ctx, actor.WorkspaceID, ref)
+	return s.repos.Issue().RemoveAssignee(ctx, details.ID, userID)
 }
 
 // SetPrimary назначает участника ответственным за задачу. Доступно участнику
 // команды задачи. userID обязан быть среди активных участников задачи, иначе
 // errs.Validation. Смена идёт в одной транзакции (ClearPrimary + SetPrimary).
 // Возвращает обновлённую задачу.
+//
+// Членство userID в команде здесь НЕ перепроверяется намеренно: ответственный
+// выбирается из числа существующих активных assignees (инвариант
+// «responsible ⊆ assignees»), а членство проверялось при добавлении участника.
 func (s *IssueService) SetPrimary(ctx context.Context, actor model.WorkspaceMember, ref, userID string) (model.IssueDetails, error) {
-	details, err := s.GetIssue(ctx, actor.WorkspaceID, ref)
+	details, err := s.resolveIssue(ctx, actor.WorkspaceID, ref)
 	if err != nil {
 		return model.IssueDetails{}, err
 	}
@@ -94,7 +101,12 @@ func (s *IssueService) SetPrimary(ctx context.Context, actor model.WorkspaceMemb
 	if err != nil {
 		return model.IssueDetails{}, err
 	}
-	return s.GetIssue(ctx, actor.WorkspaceID, ref)
+
+	// Поля задачи не менялись — переиспользуем details, обновив только assignees.
+	if err := s.enrichAssignees(ctx, &details); err != nil {
+		return model.IssueDetails{}, err
+	}
+	return details, nil
 }
 
 // validateTeamMember проверяет, что пользователь — активный участник команды.
@@ -156,7 +168,7 @@ func replaceAssignees(ctx context.Context, tx repository.Store, issueID string, 
 		}
 	}
 
-	// Snять тех, кого нет в новом наборе.
+	// Снять тех, кого нет в новом наборе.
 	for _, cur := range current {
 		if !want[cur.UserID] {
 			if rerr := tx.Issue().RemoveAssignee(ctx, issueID, cur.UserID); rerr != nil {

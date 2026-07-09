@@ -90,6 +90,16 @@ func TestIssueAssignees_HappyPath(t *testing.T) {
 		t.Fatalf("primary after set u1 = %q, want %s", primaryOf(as), u1.userID)
 	}
 
+	// Повторный POST того же участника без is_primary НЕ снимает ответственность
+	// (идемпотентное добавление не демоутит активного primary).
+	resp = doJSON(t, client, http.MethodPost, assigneesURL, map[string]any{"user_id": u1.userID}, creator.cookie)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("re-add u1: status = %d, want 200", resp.StatusCode)
+	}
+	if as := decodeAssignees(t, resp); primaryOf(as) != u1.userID {
+		t.Fatalf("primary after re-add u1 = %q, want %s (not demoted)", primaryOf(as), u1.userID)
+	}
+
 	// POST u2, затем PUT primary u2 → старый (u1) перестаёт быть primary.
 	resp = doJSON(t, client, http.MethodPost, assigneesURL, map[string]any{"user_id": u2.userID}, creator.cookie)
 	if resp.StatusCode != http.StatusOK {

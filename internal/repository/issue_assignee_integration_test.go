@@ -124,6 +124,49 @@ func TestIssueAssigneeRepo_ListByIssuesBatch(t *testing.T) {
 	}
 }
 
+func TestIssueAssigneeRepo_AddAssigneePreservesAndResetsPrimary(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	db := dbtest.Open(t)
+	repos := repository.New(db)
+
+	wsID := dbtest.SeedWorkspace(t, db)
+	teamID := dbtest.SeedTeam(t, db, wsID)
+	statusID := dbtest.SeedStatus(t, db, teamID, "Backlog", "backlog", 0)
+	issueID, _ := dbtest.SeedIssue(t, db, teamID, statusID)
+	userID := dbtest.SeedUser(t, db)
+
+	if _, err := repos.Issue().AddAssignee(ctx, model.IssueAssignee{IssueID: issueID, UserID: userID}); err != nil {
+		t.Fatalf("AddAssignee: %v", err)
+	}
+	if err := repos.Issue().SetPrimary(ctx, issueID, userID); err != nil {
+		t.Fatalf("SetPrimary: %v", err)
+	}
+
+	// Повторное добавление активного участника (is_primary=false) НЕ снимает
+	// ответственность — активную строку апсерт не демоутит.
+	readded, err := repos.Issue().AddAssignee(ctx, model.IssueAssignee{IssueID: issueID, UserID: userID})
+	if err != nil {
+		t.Fatalf("AddAssignee re-add: %v", err)
+	}
+	if !readded.IsPrimary {
+		t.Fatalf("re-add active assignee = %+v, want is_primary preserved (true)", readded)
+	}
+
+	// Снятие ответственного и повторное добавление: восстановленная soft-deleted
+	// строка возвращается БЕЗ is_primary (устаревший флаг не воскрешается).
+	if err := repos.Issue().RemoveAssignee(ctx, issueID, userID); err != nil {
+		t.Fatalf("RemoveAssignee: %v", err)
+	}
+	restored, err := repos.Issue().AddAssignee(ctx, model.IssueAssignee{IssueID: issueID, UserID: userID})
+	if err != nil {
+		t.Fatalf("AddAssignee restore: %v", err)
+	}
+	if restored.IsPrimary || restored.DeletedAt != nil {
+		t.Fatalf("restored = %+v, want active, non-primary (is_primary reset)", restored)
+	}
+}
+
 func TestIssueAssigneeRepo_SinglePrimaryEnforcedByIndex(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()

@@ -124,9 +124,10 @@ func TestRemoveAssignee_SoftDeletesWithoutAutoTransfer(t *testing.T) {
 	currentAssignees(issues)
 	teams.EXPECT().GetMember(gomock.Any(), "team-1", "user-1").Return(teamMember(), nil)
 	issues.EXPECT().RemoveAssignee(gomock.Any(), issueUUID, "user-2").Return(nil)
-	// Ни ClearPrimary, ни SetPrimary: снятие участника не переназначает ответственного.
+	// Ни ClearPrimary, ни SetPrimary: снятие участника (в т.ч. ответственного) не
+	// переназначает ответственного автоматически.
 
-	if _, err := newIssueService(store).RemoveAssignee(context.Background(), issueActor(), issueUUID, "user-2"); err != nil {
+	if err := newIssueService(store).RemoveAssignee(context.Background(), issueActor(), issueUUID, "user-2"); err != nil {
 		t.Fatalf("RemoveAssignee: %v", err)
 	}
 }
@@ -137,7 +138,7 @@ func TestRemoveAssignee_ForbiddenWhenActorNotTeamMember(t *testing.T) {
 	teams.EXPECT().GetMember(gomock.Any(), "team-1", "user-1").Return(model.TeamMember{}, errs.NotFound("resource not found"))
 	// RemoveAssignee не вызывается: actor не участник команды.
 
-	_, err := newIssueService(store).RemoveAssignee(context.Background(), issueActor(), issueUUID, "user-2")
+	err := newIssueService(store).RemoveAssignee(context.Background(), issueActor(), issueUUID, "user-2")
 	assertAppErrCode(t, err, errs.CodeForbidden)
 }
 
