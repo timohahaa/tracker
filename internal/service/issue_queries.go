@@ -62,7 +62,33 @@ func (s *IssueService) ListIssues(ctx context.Context, workspaceID string, filte
 		last := res.Issues[len(res.Issues)-1]
 		res.NextCursor = &model.Cursor{Value: sortValue(last, page.Sort), ID: last.ID}
 	}
+
+	// Обогащаем assignees батчем (WHERE issue_id = ANY(...)) только для строк
+	// возвращаемой страницы — без N+1.
+	if err := s.enrichListAssignees(ctx, res.Issues); err != nil {
+		return IssueListResult{}, err
+	}
 	return res, nil
+}
+
+// enrichListAssignees догружает активных участников для набора задач одним
+// запросом и раскладывает их по строкам.
+func (s *IssueService) enrichListAssignees(ctx context.Context, issues []model.IssueDetails) error {
+	if len(issues) == 0 {
+		return nil
+	}
+	ids := make([]string, len(issues))
+	for i := range issues {
+		ids[i] = issues[i].ID
+	}
+	byIssue, err := s.repos.Issue().ListAssigneesByIssues(ctx, ids)
+	if err != nil {
+		return err
+	}
+	for i := range issues {
+		issues[i].Assignees = byIssue[issues[i].ID]
+	}
+	return nil
 }
 
 // normalizePage применяет дефолты и кэп к параметрам пагинации и валидирует

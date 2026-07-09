@@ -28,14 +28,30 @@ type createIssueRequest struct {
 }
 
 // updateIssueRequest — тело PATCH /issues/{issueID}. Все поля опциональны
-// (partial update): nil означает «не менять».
+// (partial update): nil означает «не менять». Для assignees: nil (поле не
+// прислано) = «не трогать»; присланный массив (в т.ч. пустой) = replace всего
+// набора (пустой = снять всех).
 type updateIssueRequest struct {
-	Title       *string `json:"title" validate:"omitempty,min=1"`
-	Description *string `json:"description"`
-	StatusID    *string `json:"status_id"`
-	ProjectID   *string `json:"project_id"`
-	Priority    *string `json:"priority" validate:"omitempty,oneof=none urgent high medium low"`
-	DueDate     *string `json:"due_date" validate:"omitempty,datetime=2006-01-02"`
+	Title       *string          `json:"title" validate:"omitempty,min=1"`
+	Description *string          `json:"description"`
+	StatusID    *string          `json:"status_id"`
+	ProjectID   *string          `json:"project_id"`
+	Priority    *string          `json:"priority" validate:"omitempty,oneof=none urgent high medium low"`
+	DueDate     *string          `json:"due_date" validate:"omitempty,datetime=2006-01-02"`
+	Assignees   *[]assigneeInput `json:"assignees" validate:"omitempty,dive"`
+}
+
+// assigneeInput — элемент набора assignees в PATCH-replace.
+type assigneeInput struct {
+	UserID    string `json:"user_id" validate:"required,uuid"`
+	IsPrimary bool   `json:"is_primary"`
+}
+
+// addAssigneeRequest — тело POST /issues/{issueID}/assignees. is_primary
+// опционален: true → участник сразу назначается ответственным.
+type addAssigneeRequest struct {
+	UserID    string `json:"user_id" validate:"required,uuid"`
+	IsPrimary bool   `json:"is_primary"`
 }
 
 // assigneeResponse — участник задачи в ответе (user_id + признак ответственного).
@@ -258,6 +274,14 @@ func (r updateIssueRequest) toParams() (service.UpdateIssueParams, error) {
 		p := model.Priority(*r.Priority)
 		priority = &p
 	}
+	var assignees *[]service.AssigneeInput
+	if r.Assignees != nil {
+		set := make([]service.AssigneeInput, 0, len(*r.Assignees))
+		for _, a := range *r.Assignees {
+			set = append(set, service.AssigneeInput{UserID: a.UserID, IsPrimary: a.IsPrimary})
+		}
+		assignees = &set
+	}
 	return service.UpdateIssueParams{
 		Title:       r.Title,
 		Description: r.Description,
@@ -265,6 +289,7 @@ func (r updateIssueRequest) toParams() (service.UpdateIssueParams, error) {
 		ProjectID:   r.ProjectID,
 		Priority:    priority,
 		DueDate:     due,
+		Assignees:   assignees,
 	}, nil
 }
 

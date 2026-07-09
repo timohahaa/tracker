@@ -197,7 +197,86 @@ func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
 	httpx.RespondJSON(w, http.StatusOK, toIssueListResponse(res))
 }
 
-// addAssignee, removeAssignee, setPrimary — заглушки следующего захода (assignees).
-func (h *Handler) addAssignee(w http.ResponseWriter, r *http.Request)    {}
-func (h *Handler) removeAssignee(w http.ResponseWriter, r *http.Request) {}
-func (h *Handler) setPrimary(w http.ResponseWriter, r *http.Request)     {}
+// addAssignee godoc
+//
+//	@Summary		Add an assignee
+//	@Description	Добавляет участника задачи (участник команды). is_primary=true сразу назначает ответственным.
+//	@Tags			issue
+//	@Accept			json
+//	@Produce		json
+//	@Param			workspaceID	path		string				true	"Workspace ID"
+//	@Param			issueID		path		string				true	"Issue UUID or identifier"
+//	@Param			body		body		addAssigneeRequest	true	"Assignee payload"
+//	@Success		200			{object}	issueResponse
+//	@Failure		400			{object}	httpx.ErrorResponse
+//	@Failure		401			{object}	httpx.ErrorResponse
+//	@Failure		403			{object}	httpx.ErrorResponse
+//	@Failure		404			{object}	httpx.ErrorResponse
+//	@Router			/api/workspaces/{workspaceID}/issues/{issueID}/assignees [post]
+func (h *Handler) addAssignee(w http.ResponseWriter, r *http.Request) {
+	req, err := httpx.DecodeJSON[addAssigneeRequest](r)
+	if err != nil {
+		httpx.RespondError(w, err)
+		return
+	}
+
+	actor := middleware.MemberFromContext(r.Context())
+	ref := httpx.PathParam(r, "issueID")
+	issue, err := h.services.Issue.AddAssignee(r.Context(), actor, ref, req.UserID, req.IsPrimary)
+	if err != nil {
+		httpx.RespondError(w, err)
+		return
+	}
+	httpx.RespondJSON(w, http.StatusOK, toIssueResponse(issue))
+}
+
+// removeAssignee godoc
+//
+//	@Summary		Remove an assignee
+//	@Description	Убирает участника задачи (участник команды). Снятие ответственного оставляет задачу без ответственного.
+//	@Tags			issue
+//	@Param			workspaceID	path	string	true	"Workspace ID"
+//	@Param			issueID		path	string	true	"Issue UUID or identifier"
+//	@Param			userID		path	string	true	"Assignee user ID"
+//	@Success		204			"No Content"
+//	@Failure		401			{object}	httpx.ErrorResponse
+//	@Failure		403			{object}	httpx.ErrorResponse
+//	@Failure		404			{object}	httpx.ErrorResponse
+//	@Router			/api/workspaces/{workspaceID}/issues/{issueID}/assignees/{userID} [delete]
+func (h *Handler) removeAssignee(w http.ResponseWriter, r *http.Request) {
+	actor := middleware.MemberFromContext(r.Context())
+	ref := httpx.PathParam(r, "issueID")
+	userID := httpx.PathParam(r, "userID")
+	if _, err := h.services.Issue.RemoveAssignee(r.Context(), actor, ref, userID); err != nil {
+		httpx.RespondError(w, err)
+		return
+	}
+	httpx.RespondJSON(w, http.StatusNoContent, nil)
+}
+
+// setPrimary godoc
+//
+//	@Summary		Set the responsible assignee
+//	@Description	Назначает участника ответственным (только из числа участников задачи, участник команды).
+//	@Tags			issue
+//	@Produce		json
+//	@Param			workspaceID	path		string	true	"Workspace ID"
+//	@Param			issueID		path		string	true	"Issue UUID or identifier"
+//	@Param			userID		path		string	true	"Assignee user ID"
+//	@Success		200			{object}	issueResponse
+//	@Failure		400			{object}	httpx.ErrorResponse
+//	@Failure		401			{object}	httpx.ErrorResponse
+//	@Failure		403			{object}	httpx.ErrorResponse
+//	@Failure		404			{object}	httpx.ErrorResponse
+//	@Router			/api/workspaces/{workspaceID}/issues/{issueID}/assignees/{userID}/primary [put]
+func (h *Handler) setPrimary(w http.ResponseWriter, r *http.Request) {
+	actor := middleware.MemberFromContext(r.Context())
+	ref := httpx.PathParam(r, "issueID")
+	userID := httpx.PathParam(r, "userID")
+	issue, err := h.services.Issue.SetPrimary(r.Context(), actor, ref, userID)
+	if err != nil {
+		httpx.RespondError(w, err)
+		return
+	}
+	httpx.RespondJSON(w, http.StatusOK, toIssueResponse(issue))
+}

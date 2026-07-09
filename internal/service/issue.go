@@ -32,6 +32,8 @@ type CreateIssueParams struct {
 }
 
 // UpdateIssueParams — частичное обновление задачи. Nil-поле означает «не менять».
+// Assignees — replace-семантика всего набора: nil = «не трогать ассайни»,
+// непустой/пустой слайс = заменить набор целиком (пустой = снять всех).
 type UpdateIssueParams struct {
 	Title       *string
 	Description *string
@@ -39,6 +41,13 @@ type UpdateIssueParams struct {
 	ProjectID   *string
 	Priority    *model.Priority
 	DueDate     *time.Time
+	Assignees   *[]AssigneeInput
+}
+
+// AssigneeInput — участник задачи во входных данных (граница service).
+type AssigneeInput struct {
+	UserID    string
+	IsPrimary bool
 }
 
 // CreateIssue создаёт задачу в команде: выдаёт issue_number атомарным
@@ -104,18 +113,42 @@ func (s *IssueService) CreateIssue(ctx context.Context, actor model.WorkspaceMem
 	}, nil
 }
 
-// GetIssue возвращает задачу workspace по ссылке — UUID или identifier (ENG-123).
-// Доступно участнику workspace (проверено в middleware LoadWorkspace).
+// GetIssue возвращает задачу workspace по ссылке — UUID или identifier (ENG-123)
+// с догруженными активными assignees. Доступно участнику workspace (проверено в
+// middleware LoadWorkspace).
 func (s *IssueService) GetIssue(ctx context.Context, workspaceID, ref string) (model.IssueDetails, error) {
-	if _, err := uuid.Parse(ref); err == nil {
-		return s.repos.Issue().GetByID(ctx, workspaceID, ref)
+	var (
+		details model.IssueDetails
+		err     error
+	)
+	if _, perr := uuid.Parse(ref); perr == nil {
+		details, err = s.repos.Issue().GetByID(ctx, workspaceID, ref)
+	} else {
+		key, number, ok := parseIdentifier(ref)
+		if !ok {
+			return model.IssueDetails{}, errs.NotFound("issue not found")
+		}
+		details, err = s.repos.Issue().GetByIdentifier(ctx, workspaceID, key, number)
 	}
+	if err != nil {
+		return model.IssueDetails{}, err
+	}
+	if err := s.enrichAssignees(ctx, &details); err != nil {
+		return model.IssueDetails{}, err
+	}
+	return details, nil
+}
 
-	key, number, ok := parseIdentifier(ref)
-	if !ok {
-		return model.IssueDetails{}, errs.NotFound("issue not found")
+// enrichAssignees догружает активных участников задачи (read-модель
+// IssueDetails.Assignees заполняется на уровне сервиса, репо-мапперы её не
+// трогают).
+func (s *IssueService) enrichAssignees(ctx context.Context, d *model.IssueDetails) error {
+	assignees, err := s.repos.Issue().ListAssignees(ctx, d.ID)
+	if err != nil {
+		return err
 	}
-	return s.repos.Issue().GetByIdentifier(ctx, workspaceID, key, number)
+	d.Assignees = assignees
+	return nil
 }
 
 // UpdateIssue частично обновляет задачу. Доступно участнику команды задачи.
@@ -162,15 +195,52 @@ func (s *IssueService) UpdateIssue(ctx context.Context, actor model.WorkspaceMem
 		issue.DueDate = params.DueDate
 	}
 
-	updated, err := s.repos.Issue().Update(ctx, issue)
+	// Ассайни не трогаем — простой путь (одиночный UPDATE без транзакции).
+	if params.Assignees == nil {
+		updated, err := s.repos.Issue().Update(ctx, issue)
+		if err != nil {
+			return model.IssueDetails{}, err
+		}
+		out := model.IssueDetails{
+			Issue:      updated,
+			TeamKey:    details.TeamKey,
+			Identifier: details.Identifier,
+		}
+		if err := s.enrichAssignees(ctx, &out); err != nil {
+			return model.IssueDetails{}, err
+		}
+		return out, nil
+	}
+
+	// Replace-семантика набора: валидируем и заменяем в одной транзакции вместе
+	// с обновлением полей задачи.
+	set, err := s.validateAssigneeSet(ctx, issue.TeamID, *params.Assignees)
 	if err != nil {
 		return model.IssueDetails{}, err
 	}
-	return model.IssueDetails{
+
+	var updated model.Issue
+	err = s.repos.WithTx(ctx, func(tx repository.Store) error {
+		var uerr error
+		updated, uerr = tx.Issue().Update(ctx, issue)
+		if uerr != nil {
+			return uerr
+		}
+		return replaceAssignees(ctx, tx, issue.ID, set)
+	})
+	if err != nil {
+		return model.IssueDetails{}, err
+	}
+
+	out := model.IssueDetails{
 		Issue:      updated,
 		TeamKey:    details.TeamKey,
 		Identifier: details.Identifier,
-	}, nil
+	}
+	if err := s.enrichAssignees(ctx, &out); err != nil {
+		return model.IssueDetails{}, err
+	}
+	return out, nil
 }
 
 // DeleteIssue мягко удаляет задачу. Доступно участнику команды задачи.

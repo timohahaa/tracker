@@ -229,6 +229,7 @@ func TestGetIssue_DispatchesByUUID(t *testing.T) {
 
 	const id = "00000000-0000-0000-0000-000000000001"
 	issues.EXPECT().GetByID(gomock.Any(), "ws-1", id).Return(model.IssueDetails{Issue: model.Issue{ID: id}}, nil)
+	issues.EXPECT().ListAssignees(gomock.Any(), id).Return(nil, nil)
 	// GetByIdentifier не вызывается: ref — валидный UUID.
 
 	if _, err := newIssueService(store).GetIssue(context.Background(), "ws-1", id); err != nil {
@@ -244,6 +245,7 @@ func TestGetIssue_DispatchesByIdentifier(t *testing.T) {
 
 	// key нормализуется в верхний регистр, номер парсится как int.
 	issues.EXPECT().GetByIdentifier(gomock.Any(), "ws-1", "ENG", 7).Return(model.IssueDetails{}, nil)
+	issues.EXPECT().ListAssignees(gomock.Any(), gomock.Any()).Return(nil, nil)
 	// GetByID не вызывается: ref — identifier.
 
 	if _, err := newIssueService(store).GetIssue(context.Background(), "ws-1", "eng-7"); err != nil {
@@ -273,6 +275,7 @@ func TestUpdateIssue_ForbiddenWithoutTeamMembership(t *testing.T) {
 	const id = "00000000-0000-0000-0000-000000000001"
 	issues.EXPECT().GetByID(gomock.Any(), "ws-1", id).
 		Return(model.IssueDetails{Issue: model.Issue{ID: id, TeamID: "team-1"}}, nil)
+	issues.EXPECT().ListAssignees(gomock.Any(), gomock.Any()).Return(nil, nil).AnyTimes()
 	teams.EXPECT().GetMember(gomock.Any(), "team-1", "user-1").Return(model.TeamMember{}, errs.NotFound("resource not found"))
 	// Update не вызывается: не участник команды.
 
@@ -297,6 +300,7 @@ func TestUpdateIssue_AppliesFieldsAndValidatesStatus(t *testing.T) {
 			TeamKey:    "ENG",
 			Identifier: "ENG-1",
 		}, nil)
+	issues.EXPECT().ListAssignees(gomock.Any(), gomock.Any()).Return(nil, nil).AnyTimes()
 	teams.EXPECT().GetMember(gomock.Any(), "team-1", "user-1").Return(teamMember(), nil)
 	statuses.EXPECT().Get(gomock.Any(), "team-1", "st-new").
 		Return(model.Status{ID: "st-new", TeamID: "team-1"}, nil)
@@ -336,6 +340,7 @@ func TestUpdateIssue_InvalidStatusValidation(t *testing.T) {
 	const id = "00000000-0000-0000-0000-000000000001"
 	issues.EXPECT().GetByID(gomock.Any(), "ws-1", id).
 		Return(model.IssueDetails{Issue: model.Issue{ID: id, TeamID: "team-1"}}, nil)
+	issues.EXPECT().ListAssignees(gomock.Any(), gomock.Any()).Return(nil, nil).AnyTimes()
 	teams.EXPECT().GetMember(gomock.Any(), "team-1", "user-1").Return(teamMember(), nil)
 	statuses.EXPECT().Get(gomock.Any(), "team-1", "st-x").Return(model.Status{}, errs.NotFound("resource not found"))
 	// Update не вызывается: новый статус не принадлежит команде.
@@ -357,6 +362,7 @@ func TestDeleteIssue_Success(t *testing.T) {
 	const id = "00000000-0000-0000-0000-000000000001"
 	issues.EXPECT().GetByID(gomock.Any(), "ws-1", id).
 		Return(model.IssueDetails{Issue: model.Issue{ID: id, TeamID: "team-1"}}, nil)
+	issues.EXPECT().ListAssignees(gomock.Any(), gomock.Any()).Return(nil, nil).AnyTimes()
 	teams.EXPECT().GetMember(gomock.Any(), "team-1", "user-1").Return(teamMember(), nil)
 	issues.EXPECT().Delete(gomock.Any(), id).Return(nil)
 
@@ -376,6 +382,7 @@ func TestDeleteIssue_ForbiddenWithoutTeamMembership(t *testing.T) {
 	const id = "00000000-0000-0000-0000-000000000001"
 	issues.EXPECT().GetByID(gomock.Any(), "ws-1", id).
 		Return(model.IssueDetails{Issue: model.Issue{ID: id, TeamID: "team-1"}}, nil)
+	issues.EXPECT().ListAssignees(gomock.Any(), gomock.Any()).Return(nil, nil).AnyTimes()
 	teams.EXPECT().GetMember(gomock.Any(), "team-1", "user-1").Return(model.TeamMember{}, errs.NotFound("resource not found"))
 	// Delete не вызывается: не участник команды.
 

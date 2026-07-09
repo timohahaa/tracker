@@ -104,6 +104,7 @@ func TestListIssues_HasMoreAndTimestampCursor(t *testing.T) {
 		issueDetails("i3", time.Date(2026, 7, 6, 10, 0, 0, 0, time.UTC), model.PriorityNone), // «лишняя» строка
 	}
 	issues.EXPECT().List(gomock.Any(), "ws-1", gomock.Any(), gomock.Any()).Return(rows, nil)
+	issues.EXPECT().ListAssigneesByIssues(gomock.Any(), gomock.Any()).Return(map[string][]model.IssueAssignee{}, nil).AnyTimes()
 
 	res, err := newIssueService(store).ListIssues(context.Background(), "ws-1", model.IssueFilter{}, model.Page{Limit: 2})
 	if err != nil {
@@ -137,6 +138,7 @@ func TestListIssues_NoMoreLeavesCursorNil(t *testing.T) {
 		issueDetails("i2", time.Now(), model.PriorityNone),
 	}
 	issues.EXPECT().List(gomock.Any(), "ws-1", gomock.Any(), gomock.Any()).Return(rows, nil)
+	issues.EXPECT().ListAssigneesByIssues(gomock.Any(), gomock.Any()).Return(map[string][]model.IssueAssignee{}, nil).AnyTimes()
 
 	res, err := newIssueService(store).ListIssues(context.Background(), "ws-1", model.IssueFilter{}, model.Page{Limit: 2})
 	if err != nil {
@@ -165,6 +167,7 @@ func TestListIssues_PriorityCursorEncodesRank(t *testing.T) {
 		issueDetails("i3", time.Now(), model.PriorityLow), // «лишняя» строка
 	}
 	issues.EXPECT().List(gomock.Any(), "ws-1", gomock.Any(), gomock.Any()).Return(rows, nil)
+	issues.EXPECT().ListAssigneesByIssues(gomock.Any(), gomock.Any()).Return(map[string][]model.IssueAssignee{}, nil).AnyTimes()
 
 	res, err := newIssueService(store).ListIssues(context.Background(), "ws-1", model.IssueFilter{}, model.Page{Limit: 2, Sort: "priority"})
 	if err != nil {

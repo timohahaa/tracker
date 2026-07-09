@@ -117,6 +117,18 @@ type IssueRepository interface {
 	// workspace. Позволяет валидировать project_id в issue-сервисе, не затрагивая
 	// write-методы (будущего) project-слайса.
 	ProjectInWorkspace(ctx context.Context, workspaceID, projectID string) (bool, error)
+
+	// Assignees (tracker.issue_assignee). Гранулярные методы работают и на пуле,
+	// и на транзакции; атомарные операции (смена ответственного, replace набора)
+	// оркеструются в сервисе через WithTx. Все read-методы фильтруют
+	// deleted_at IS NULL.
+	ListAssignees(ctx context.Context, issueID string) ([]model.IssueAssignee, error)
+	ListAssigneesByIssues(ctx context.Context, issueIDs []string) (map[string][]model.IssueAssignee, error)
+	GetAssignee(ctx context.Context, issueID, userID string) (model.IssueAssignee, error)
+	AddAssignee(ctx context.Context, a model.IssueAssignee) (model.IssueAssignee, error)
+	RemoveAssignee(ctx context.Context, issueID, userID string) error
+	ClearPrimary(ctx context.Context, issueID string) error
+	SetPrimary(ctx context.Context, issueID, userID string) error
 }
 
 // Компайл-тайм проверки соответствия конкретных репозиториев интерфейсам.
