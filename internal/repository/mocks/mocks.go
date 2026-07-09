@@ -970,6 +970,21 @@ func (mr *MockIssueRepositoryMockRecorder) IncrementIssueNumber(ctx, teamID any)
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IncrementIssueNumber", reflect.TypeOf((*MockIssueRepository)(nil).IncrementIssueNumber), ctx, teamID)
 }
 
+// List mocks base method.
+func (m *MockIssueRepository) List(ctx context.Context, workspaceID string, filter model.IssueFilter, page model.Page) ([]model.IssueDetails, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "List", ctx, workspaceID, filter, page)
+	ret0, _ := ret[0].([]model.IssueDetails)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// List indicates an expected call of List.
+func (mr *MockIssueRepositoryMockRecorder) List(ctx, workspaceID, filter, page any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "List", reflect.TypeOf((*MockIssueRepository)(nil).List), ctx, workspaceID, filter, page)
+}
+
 // ProjectInWorkspace mocks base method.
 func (m *MockIssueRepository) ProjectInWorkspace(ctx context.Context, workspaceID, projectID string) (bool, error) {
 	m.ctrl.T.Helper()

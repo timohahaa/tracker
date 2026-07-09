@@ -128,6 +128,92 @@ func SeedIssue(t *testing.T, db *sqlx.DB, teamID, statusID string) (string, int)
 	return out.ID, out.Number
 }
 
+// IssueSeed — параметры расширенного сидера задачи. Пустые поля берут дефолты.
+type IssueSeed struct {
+	Title       string
+	Description string
+	Priority    string     // none/urgent/high/medium/low; пусто → none
+	DueDate     *time.Time // nil → без дедлайна
+}
+
+// SeedIssueDetailed вставляет tracker.issue с управляемыми priority/title/
+// description/due_date и возвращает её id и выданный issue_number (max+1 per
+// team). Нужен для list-тестов: фильтрация/поиск/сортировка по разным полям.
+func SeedIssueDetailed(t *testing.T, db *sqlx.DB, teamID, statusID string, seed IssueSeed) (string, int) {
+	t.Helper()
+	if seed.Title == "" {
+		seed.Title = "seed issue " + uuid.NewString()
+	}
+	if seed.Priority == "" {
+		seed.Priority = "none"
+	}
+	var out struct {
+		ID     string `db:"id"`
+		Number int    `db:"issue_number"`
+	}
+	err := db.Get(&out, `
+		INSERT INTO tracker.issue (team_id, status_id, title, description, priority, due_date, issue_number)
+		VALUES (
+			$1
+			, $2
+			, $3
+			, $4
+			, $5
+			, $6
+			, (SELECT COALESCE(MAX(issue_number), 0) + 1 FROM tracker.issue WHERE team_id = $1)
+		)
+		RETURNING id, issue_number`, teamID, statusID, seed.Title, seed.Description, seed.Priority, seed.DueDate)
+	if err != nil {
+		t.Fatalf("seed issue detailed: %s", err)
+	}
+	t.Cleanup(func() { _, _ = db.Exec(`DELETE FROM tracker.issue WHERE id = $1`, out.ID) })
+	return out.ID, out.Number
+}
+
+// SeedLabel вставляет tracker.label. teamID == nil → workspace-level метка,
+// иначе team-level. Возвращает её id. Имя/цвет уникальны на тест.
+func SeedLabel(t *testing.T, db *sqlx.DB, workspaceID string, teamID *string) string {
+	t.Helper()
+	name := "label-" + uuid.NewString()
+	var id string
+	err := db.Get(&id, `
+		INSERT INTO tracker.label (workspace_id, team_id, name, color)
+		VALUES ($1, $2, $3, '#3B82F6') RETURNING id`, workspaceID, teamID, name)
+	if err != nil {
+		t.Fatalf("seed label: %s", err)
+	}
+	t.Cleanup(func() { _, _ = db.Exec(`DELETE FROM tracker.label WHERE id = $1`, id) })
+	return id
+}
+
+// SeedIssueAssignee добавляет участника задачи (is_primary → ответственный).
+func SeedIssueAssignee(t *testing.T, db *sqlx.DB, issueID, userID string, isPrimary bool) {
+	t.Helper()
+	_, err := db.Exec(`
+		INSERT INTO tracker.issue_assignee (issue_id, user_id, is_primary)
+		VALUES ($1, $2, $3)`, issueID, userID, isPrimary)
+	if err != nil {
+		t.Fatalf("seed issue assignee: %s", err)
+	}
+	t.Cleanup(func() {
+		_, _ = db.Exec(`DELETE FROM tracker.issue_assignee WHERE issue_id = $1 AND user_id = $2`, issueID, userID)
+	})
+}
+
+// SeedIssueLabel привязывает метку к задаче (junction tracker.issue_label).
+func SeedIssueLabel(t *testing.T, db *sqlx.DB, issueID, labelID string) {
+	t.Helper()
+	_, err := db.Exec(`
+		INSERT INTO tracker.issue_label (issue_id, label_id)
+		VALUES ($1, $2)`, issueID, labelID)
+	if err != nil {
+		t.Fatalf("seed issue label: %s", err)
+	}
+	t.Cleanup(func() {
+		_, _ = db.Exec(`DELETE FROM tracker.issue_label WHERE issue_id = $1 AND label_id = $2`, issueID, labelID)
+	})
+}
+
 // SeedSession создаёт активную сессию (expires_at через час) и возвращает её id.
 func SeedSession(t *testing.T, db *sqlx.DB, userID string) string {
 	t.Helper()

@@ -28,6 +28,25 @@ func TestEncodeDecodeCursorRoundTrip(t *testing.T) {
 	}
 }
 
+func TestEncodeDecodeCursorPriorityRank(t *testing.T) {
+	// Для sort=priority значением курсора выступает ранг CASE (int-строка).
+	const (
+		value = "3"
+		id    = "0192f0a0-0000-7000-8000-000000000001"
+	)
+
+	cur, err := DecodeCursor(EncodeCursor(value, id))
+	if err != nil {
+		t.Fatalf("DecodeCursor: unexpected error: %v", err)
+	}
+	if cur == nil {
+		t.Fatal("DecodeCursor returned nil cursor")
+	}
+	if cur.Value != value || cur.ID != id {
+		t.Errorf("cursor = (%q, %q), want (%q, %q)", cur.Value, cur.ID, value, id)
+	}
+}
+
 func TestDecodeCursorEmpty(t *testing.T) {
 	cur, err := DecodeCursor("")
 	if err != nil {

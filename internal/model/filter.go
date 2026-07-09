@@ -1,6 +1,10 @@
 package model
 
-import "time"
+import (
+	"time"
+
+	"github.com/google/uuid"
+)
 
 // SortOrder — направление сортировки.
 type SortOrder string
@@ -25,15 +29,17 @@ type Page struct {
 }
 
 // IssueFilter — фильтры списка задач (shared между service и repository).
+// ID-поля типизированы как uuid.UUID: разбор на HTTP-границе одновременно
+// валидирует значение, поэтому в service/repository невалидный UUID недостижим.
 type IssueFilter struct {
-	TeamID        *string
-	StatusID      *string
+	TeamID        *uuid.UUID
+	StatusID      *uuid.UUID
 	StatusGroup   *StatusGroup
-	Assignee      *string
-	Responsible   *string
+	Assignee      *uuid.UUID
+	Responsible   *uuid.UUID
 	Priority      *Priority
-	ProjectID     *string
-	LabelIDs      []string
+	ProjectID     *uuid.UUID
+	LabelIDs      []uuid.UUID
 	DueDateBefore *time.Time
 	DueDateAfter  *time.Time
 	Query         *string

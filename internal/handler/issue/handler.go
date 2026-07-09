@@ -154,9 +154,50 @@ func (h *Handler) delete(w http.ResponseWriter, r *http.Request) {
 	httpx.RespondJSON(w, http.StatusNoContent, nil)
 }
 
-// list, addAssignee, removeAssignee, setPrimary — заглушки следующих заходов
-// (List/фильтры и assignees).
-func (h *Handler) list(w http.ResponseWriter, r *http.Request)           {}
+// list godoc
+//
+//	@Summary		List issues
+//	@Description	Возвращает задачи workspace с фильтрами, поиском и keyset-пагинацией (участник workspace).
+//	@Tags			issue
+//	@Produce		json
+//	@Param			workspaceID		path		string	true	"Workspace ID"
+//	@Param			team			query		string	false	"Team ID"
+//	@Param			status			query		string	false	"Status ID"
+//	@Param			status_group	query		string	false	"Status group (backlog, planned, in_progress, completed, canceled)"
+//	@Param			assignee		query		string	false	"Assignee user ID (any participant)"
+//	@Param			responsible		query		string	false	"Responsible user ID"
+//	@Param			priority		query		string	false	"Priority (none, urgent, high, medium, low)"
+//	@Param			project			query		string	false	"Project ID"
+//	@Param			label			query		[]string	false	"Label ID (repeatable, matches all)"	collectionFormat(multi)
+//	@Param			due_date_before	query		string	false	"Due date on or before (YYYY-MM-DD)"
+//	@Param			due_date_after	query		string	false	"Due date on or after (YYYY-MM-DD)"
+//	@Param			q				query		string	false	"Full-text search (title + description)"
+//	@Param			sort			query		string	false	"Sort field (created_at, updated_at, priority)"	default(updated_at)
+//	@Param			order			query		string	false	"Sort order (asc, desc)"	default(desc)
+//	@Param			limit			query		int		false	"Page size"	default(50)
+//	@Param			cursor			query		string	false	"Pagination cursor"
+//	@Success		200				{object}	issueListResponse
+//	@Failure		400				{object}	httpx.ErrorResponse
+//	@Failure		401				{object}	httpx.ErrorResponse
+//	@Failure		404				{object}	httpx.ErrorResponse
+//	@Router			/api/workspaces/{workspaceID}/issues [get]
+func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
+	filter, page, err := parseListQuery(r)
+	if err != nil {
+		httpx.RespondError(w, err)
+		return
+	}
+
+	ws := middleware.WorkspaceFromContext(r.Context())
+	res, err := h.services.Issue.ListIssues(r.Context(), ws.ID, filter, page)
+	if err != nil {
+		httpx.RespondError(w, err)
+		return
+	}
+	httpx.RespondJSON(w, http.StatusOK, toIssueListResponse(res))
+}
+
+// addAssignee, removeAssignee, setPrimary — заглушки следующего захода (assignees).
 func (h *Handler) addAssignee(w http.ResponseWriter, r *http.Request)    {}
 func (h *Handler) removeAssignee(w http.ResponseWriter, r *http.Request) {}
 func (h *Handler) setPrimary(w http.ResponseWriter, r *http.Request)     {}

@@ -107,6 +107,12 @@ type IssueRepository interface {
 	Update(ctx context.Context, i model.Issue) (model.Issue, error)
 	Delete(ctx context.Context, issueID string) error
 
+	// List возвращает задачи workspace по фильтру с keyset-пагинацией. Read-only
+	// (без транзакции). page.Limit — размер страницы; репозиторий выбирает
+	// limit+1 строку, чтобы сервис мог вычислить has_more. Assignees/Labels не
+	// заполняются (заход assignees).
+	List(ctx context.Context, workspaceID string, filter model.IssueFilter, page model.Page) ([]model.IssueDetails, error)
+
 	// ProjectInWorkspace — read-only проверка, что project активен и принадлежит
 	// workspace. Позволяет валидировать project_id в issue-сервисе, не затрагивая
 	// write-методы (будущего) project-слайса.

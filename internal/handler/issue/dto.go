@@ -1,8 +1,13 @@
 package issue
 
 import (
+	"net/http"
 	"time"
 
+	"github.com/google/uuid"
+
+	"github.com/timohahaa/tracker/internal/errs"
+	"github.com/timohahaa/tracker/internal/handler/httpx"
 	"github.com/timohahaa/tracker/internal/model"
 	"github.com/timohahaa/tracker/internal/service"
 )
@@ -45,6 +50,166 @@ type labelResponse struct {
 	ID    string `json:"id"`
 	Name  string `json:"name"`
 	Color string `json:"color"`
+}
+
+// validPriorities / validStatusGroups — допустимые значения enum-фильтров.
+// Невалидное значение → 400, чтобы клиент не молча получал пустой список.
+var (
+	validPriorities = map[string]bool{
+		"none": true, "urgent": true, "high": true, "medium": true, "low": true,
+	}
+	validStatusGroups = map[string]bool{
+		"backlog": true, "planned": true, "in_progress": true, "completed": true, "canceled": true,
+	}
+)
+
+// paginationResponse — метаданные keyset-пагинации (docs/tech/api.md).
+// next_cursor пуст, когда следующей страницы нет.
+type paginationResponse struct {
+	NextCursor string `json:"next_cursor"`
+	HasMore    bool   `json:"has_more"`
+}
+
+// issueListResponse — конверт ответа списка задач.
+type issueListResponse struct {
+	Data       []issueResponse    `json:"data"`
+	Pagination paginationResponse `json:"pagination"`
+}
+
+// parseListQuery собирает model.IssueFilter и model.Page из query-параметров
+// запроса. Битый cursor и невалидные enum/дата-фильтры → errs.Validation (400).
+// Нормализацию/валидацию sort/order/limit довершает service.
+func parseListQuery(r *http.Request) (model.IssueFilter, model.Page, error) {
+	var filter model.IssueFilter
+	var err error
+
+	if filter.TeamID, err = optUUID(r, "team"); err != nil {
+		return model.IssueFilter{}, model.Page{}, err
+	}
+	if filter.StatusID, err = optUUID(r, "status"); err != nil {
+		return model.IssueFilter{}, model.Page{}, err
+	}
+	if filter.Assignee, err = optUUID(r, "assignee"); err != nil {
+		return model.IssueFilter{}, model.Page{}, err
+	}
+	if filter.Responsible, err = optUUID(r, "responsible"); err != nil {
+		return model.IssueFilter{}, model.Page{}, err
+	}
+	if filter.ProjectID, err = optUUID(r, "project"); err != nil {
+		return model.IssueFilter{}, model.Page{}, err
+	}
+	filter.Query = optStr(httpx.QueryString(r, "q"))
+
+	if g := httpx.QueryString(r, "status_group"); g != "" {
+		if !validStatusGroups[g] {
+			return model.IssueFilter{}, model.Page{}, errs.Validation("invalid status_group", errs.FieldError{
+				Field:   "status_group",
+				Reason:  "invalid",
+				Message: "must be one of backlog, planned, in_progress, completed, canceled",
+			})
+		}
+		sg := model.StatusGroup(g)
+		filter.StatusGroup = &sg
+	}
+	if p := httpx.QueryString(r, "priority"); p != "" {
+		if !validPriorities[p] {
+			return model.IssueFilter{}, model.Page{}, errs.Validation("invalid priority", errs.FieldError{
+				Field:   "priority",
+				Reason:  "invalid",
+				Message: "must be one of none, urgent, high, medium, low",
+			})
+		}
+		pr := model.Priority(p)
+		filter.Priority = &pr
+	}
+
+	for _, raw := range r.URL.Query()["label"] {
+		if raw == "" {
+			continue
+		}
+		id, perr := uuid.Parse(raw)
+		if perr != nil {
+			return model.IssueFilter{}, model.Page{}, errs.Validation("invalid label", errs.FieldError{
+				Field:   "label",
+				Reason:  "invalid",
+				Message: "must be a valid UUID",
+			})
+		}
+		filter.LabelIDs = append(filter.LabelIDs, id)
+	}
+
+	before, err := parseDueDate(optStr(httpx.QueryString(r, "due_date_before")))
+	if err != nil {
+		return model.IssueFilter{}, model.Page{}, errs.Validation("invalid due_date_before", errs.FieldError{
+			Field:   "due_date_before",
+			Reason:  "invalid",
+			Message: "must be a date in format YYYY-MM-DD",
+		})
+	}
+	filter.DueDateBefore = before
+
+	after, err := parseDueDate(optStr(httpx.QueryString(r, "due_date_after")))
+	if err != nil {
+		return model.IssueFilter{}, model.Page{}, errs.Validation("invalid due_date_after", errs.FieldError{
+			Field:   "due_date_after",
+			Reason:  "invalid",
+			Message: "must be a date in format YYYY-MM-DD",
+		})
+	}
+	filter.DueDateAfter = after
+
+	cursor, err := httpx.QueryCursor(r)
+	if err != nil {
+		return model.IssueFilter{}, model.Page{}, err
+	}
+	page := model.Page{
+		Limit:  httpx.QueryLimit(r, service.DefaultIssueLimit, service.MaxIssueLimit),
+		Sort:   httpx.QueryString(r, "sort"),
+		Order:  model.SortOrder(httpx.QueryString(r, "order")),
+		Cursor: cursor,
+	}
+	return filter, page, nil
+}
+
+// optStr возвращает *string для непустого значения, иначе nil (фильтр не задан).
+func optStr(s string) *string {
+	if s == "" {
+		return nil
+	}
+	return &s
+}
+
+// optUUID читает необязательный UUID-фильтр из query. Пусто → (nil, nil);
+// невалидный UUID → errs.Validation (400) с полем key.
+func optUUID(r *http.Request, key string) (*uuid.UUID, error) {
+	raw := httpx.QueryString(r, key)
+	if raw == "" {
+		return nil, nil
+	}
+	id, err := uuid.Parse(raw)
+	if err != nil {
+		return nil, errs.Validation("invalid "+key, errs.FieldError{
+			Field:   key,
+			Reason:  "invalid",
+			Message: "must be a valid UUID",
+		})
+	}
+	return &id, nil
+}
+
+func toIssueListResponse(res service.IssueListResult) issueListResponse {
+	data := make([]issueResponse, 0, len(res.Issues))
+	for _, d := range res.Issues {
+		data = append(data, toIssueResponse(d))
+	}
+	var next string
+	if res.NextCursor != nil {
+		next = httpx.EncodeCursor(res.NextCursor.Value, res.NextCursor.ID)
+	}
+	return issueListResponse{
+		Data:       data,
+		Pagination: paginationResponse{NextCursor: next, HasMore: res.HasMore},
+	}
 }
 
 // issueResponse — публичное представление задачи (read-модель с identifier).

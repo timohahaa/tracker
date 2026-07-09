@@ -127,7 +127,7 @@ LIMIT 50
 
 | Param | Type | Notes |
 |-------|------|-------|
-| team | string | team ID or key (ENG) |
+| team | string | team ID (UUID). Поддержка key (ENG) — post-MVP |
 | status | string | status ID |
 | status_group | string | backlog, planned, in_progress, completed, canceled |
 | assignee | string | user ID (любой участник задачи) |
