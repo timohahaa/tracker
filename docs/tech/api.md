@@ -172,6 +172,7 @@ LIMIT 50
 |--------|------|-------------|--------|
 | GET | `/api/workspaces/{workspaceID}/labels` | Все labels (workspace + team level) | Member |
 | POST | `/api/workspaces/{workspaceID}/labels` | Создать label (team_id=null → workspace) | Member |
+| GET | `/api/workspaces/{workspaceID}/labels/:labelID` | Детали label | Member |
 | PATCH | `/api/workspaces/{workspaceID}/labels/:labelID` | Обновить label (name, color) | Member |
 | DELETE | `/api/workspaces/{workspaceID}/labels/:labelID` | Удалить label | Member |
 

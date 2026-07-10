@@ -2,7 +2,7 @@ package model
 
 import "time"
 
-// Label — метка (schema tracker.labels). team_id == nil → workspace-level.
+// Label — метка (schema tracker.label). team_id == nil → workspace-level.
 type Label struct {
 	ID          string     `db:"id"`
 	WorkspaceID string     `db:"workspace_id"`
@@ -14,7 +14,7 @@ type Label struct {
 	DeletedAt   *time.Time `db:"deleted_at"`
 }
 
-// IssueLabel — связь задача ↔ метка (schema tracker.issue_labels).
+// IssueLabel — связь задача ↔ метка (schema tracker.issue_label).
 type IssueLabel struct {
 	IssueID   string     `db:"issue_id"`
 	LabelID   string     `db:"label_id"`

@@ -156,7 +156,7 @@ func TestCreateLabel_TeamOverWorkspaceForbidden(t *testing.T) {
 		Name:   "bug",
 		Color:  "#3B82F6",
 	})
-	assertAppErrCode(t, err, errs.CodeValidation)
+	assertAppErrCode(t, err, errs.CodeAlreadyExists)
 }
 
 // --- Team-level: валидация принадлежности команды workspace ---
@@ -215,6 +215,135 @@ func TestCreateLabel_TeamLevelSuccess(t *testing.T) {
 	}
 }
 
+// --- UpdateLabel: rename применяет кросс-уровневые правила симметрично Create ---
+
+func TestUpdateLabel_TeamRenameOverWorkspaceForbidden(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	store := repomocks.NewMockStore(ctrl)
+	labels := repomocks.NewMockLabelRepository(ctrl)
+	store.EXPECT().Label().Return(labels).AnyTimes()
+
+	teamID := "team-1"
+	labels.EXPECT().GetByID(gomock.Any(), "ws-1", "label-1").
+		Return(model.Label{ID: "label-1", WorkspaceID: "ws-1", TeamID: &teamID, Name: "old", Color: "#3B82F6"}, nil)
+	// Переименование team-метки в имя существующей ws-метки → запрет.
+	labels.EXPECT().GetWorkspaceLabelByName(gomock.Any(), "ws-1", "bug").
+		Return(model.Label{ID: "ws-label", Name: "bug"}, nil)
+	// Update НЕ ожидается.
+
+	_, err := newLabelService(store).UpdateLabel(context.Background(), labelActor(), "label-1", UpdateLabelParams{
+		Name: strPtr("bug"),
+	})
+	assertAppErrCode(t, err, errs.CodeAlreadyExists)
+}
+
+func TestUpdateLabel_WorkspaceRenameMerge(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	store := repomocks.NewMockStore(ctrl)
+	labels := repomocks.NewMockLabelRepository(ctrl)
+
+	expectTx(store)
+	store.EXPECT().Label().Return(labels).AnyTimes()
+
+	// ws-level метка "old" переименовывается в "bug", под которым есть team-метки.
+	labels.EXPECT().GetByID(gomock.Any(), "ws-1", "ws-label").
+		Return(model.Label{ID: "ws-label", WorkspaceID: "ws-1", Name: "old", Color: "#3B82F6"}, nil)
+
+	team1 := "team-1"
+	labels.EXPECT().ListTeamLabelsByName(gomock.Any(), "ws-1", "bug").Return([]model.Label{
+		{ID: "old-1", WorkspaceID: "ws-1", TeamID: &team1, Name: "bug"},
+	}, nil)
+
+	var saved model.Label
+	labels.EXPECT().Update(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, l model.Label) (model.Label, error) {
+			saved = l
+			return l, nil
+		})
+	// Перепривязка issue_label на переименованную ws-метку + soft-delete team-метки.
+	labels.EXPECT().RepointIssueLabels(gomock.Any(), []string{"old-1"}, "ws-label").Return(nil)
+	labels.EXPECT().Delete(gomock.Any(), "old-1").Return(nil)
+
+	got, err := newLabelService(store).UpdateLabel(context.Background(), labelActor(), "ws-label", UpdateLabelParams{
+		Name: strPtr("bug"),
+	})
+	if err != nil {
+		t.Fatalf("UpdateLabel merge: %v", err)
+	}
+	if saved.Name != "bug" {
+		t.Errorf("saved name = %q, want bug", saved.Name)
+	}
+	if got.ID != "ws-label" {
+		t.Errorf("got id = %q, want ws-label", got.ID)
+	}
+}
+
+func TestUpdateLabel_ColorOnlyNoNameChecks(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	store := repomocks.NewMockStore(ctrl)
+	labels := repomocks.NewMockLabelRepository(ctrl)
+	store.EXPECT().Label().Return(labels).AnyTimes()
+
+	teamID := "team-1"
+	labels.EXPECT().GetByID(gomock.Any(), "ws-1", "label-1").
+		Return(model.Label{ID: "label-1", WorkspaceID: "ws-1", TeamID: &teamID, Name: "bug", Color: "#3B82F6"}, nil)
+	// Смена только цвета: без GetWorkspaceLabelByName/ListTeamLabelsByName/WithTx.
+	var saved model.Label
+	labels.EXPECT().Update(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, l model.Label) (model.Label, error) {
+			saved = l
+			return l, nil
+		})
+
+	if _, err := newLabelService(store).UpdateLabel(context.Background(), labelActor(), "label-1", UpdateLabelParams{
+		Color: strPtr("#FF0000"),
+	}); err != nil {
+		t.Fatalf("UpdateLabel color-only: %v", err)
+	}
+	if saved.Color != "#FF0000" || saved.Name != "bug" {
+		t.Errorf("saved = %+v, want #FF0000 / bug (name unchanged)", saved)
+	}
+}
+
+func TestUpdateLabel_SameNameNoChecks(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	store := repomocks.NewMockStore(ctrl)
+	labels := repomocks.NewMockLabelRepository(ctrl)
+	store.EXPECT().Label().Return(labels).AnyTimes()
+
+	labels.EXPECT().GetByID(gomock.Any(), "ws-1", "label-1").
+		Return(model.Label{ID: "label-1", WorkspaceID: "ws-1", Name: "bug", Color: "#3B82F6"}, nil)
+	// Имя совпадает с текущим → не renaming: без merge/shadow-проверок.
+	labels.EXPECT().Update(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, l model.Label) (model.Label, error) { return l, nil })
+
+	if _, err := newLabelService(store).UpdateLabel(context.Background(), labelActor(), "label-1", UpdateLabelParams{
+		Name: strPtr("bug"),
+	}); err != nil {
+		t.Fatalf("UpdateLabel same name: %v", err)
+	}
+}
+
+// --- GetLabel ---
+
+func TestGetLabel_Success(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	store := repomocks.NewMockStore(ctrl)
+	labels := repomocks.NewMockLabelRepository(ctrl)
+	store.EXPECT().Label().Return(labels).AnyTimes()
+
+	labels.EXPECT().GetByID(gomock.Any(), "ws-1", "label-1").
+		Return(model.Label{ID: "label-1", WorkspaceID: "ws-1", Name: "bug"}, nil)
+
+	got, err := newLabelService(store).GetLabel(context.Background(), "ws-1", "label-1")
+	if err != nil {
+		t.Fatalf("GetLabel: %v", err)
+	}
+	if got.ID != "label-1" {
+		t.Errorf("got id = %q, want label-1", got.ID)
+	}
+}
+
 // --- UpdateLabel: невалидный цвет ---
 
 func TestUpdateLabel_InvalidColorValidation(t *testing.T) {
@@ -242,6 +371,8 @@ func TestUpdateLabel_Success(t *testing.T) {
 
 	labels.EXPECT().GetByID(gomock.Any(), "ws-1", "label-1").
 		Return(model.Label{ID: "label-1", WorkspaceID: "ws-1", Name: "bug", Color: "#3B82F6"}, nil)
+	// ws-level rename в "feature": одноимённых team-меток нет → merge не нужен.
+	labels.EXPECT().ListTeamLabelsByName(gomock.Any(), "ws-1", "feature").Return(nil, nil)
 
 	var saved model.Label
 	labels.EXPECT().Update(gomock.Any(), gomock.Any()).

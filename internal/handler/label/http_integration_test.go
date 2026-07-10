@@ -181,8 +181,39 @@ func TestLabelCRUD(t *testing.T) {
 	}
 	_ = resp.Body.Close()
 
-	// patch: сменить name/color → 200
+	// team-метка поверх существующей ws-метки "bug" → 409
+	resp = doJSON(t, client, http.MethodPost, labelsURL, map[string]any{"name": "bug", "color": "#123456", "team_id": teamID}, m.cookie)
+	if resp.StatusCode != http.StatusConflict {
+		t.Fatalf("team over ws: status = %d, want 409", resp.StatusCode)
+	}
+	_ = resp.Body.Close()
+
+	// get одиночной метки → 200
 	labelURL := labelsURL + "/" + wsLabel.ID
+	resp = doJSON(t, client, http.MethodGet, labelURL, nil, m.cookie)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("get label: status = %d, want 200", resp.StatusCode)
+	}
+	var fetched struct {
+		ID   string `json:"id"`
+		Name string `json:"name"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&fetched); err != nil {
+		t.Fatalf("decode fetched: %v", err)
+	}
+	_ = resp.Body.Close()
+	if fetched.ID != wsLabel.ID || fetched.Name != "bug" {
+		t.Fatalf("fetched = %+v, want id %s / bug", fetched, wsLabel.ID)
+	}
+
+	// get несуществующей метки → 404
+	resp = doJSON(t, client, http.MethodGet, labelsURL+"/"+uuid.NewString(), nil, m.cookie)
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("get missing label: status = %d, want 404", resp.StatusCode)
+	}
+	_ = resp.Body.Close()
+
+	// patch: сменить name/color → 200
 	resp = doJSON(t, client, http.MethodPatch, labelURL, map[string]any{"name": "critical", "color": "#FF0000"}, m.cookie)
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("patch: status = %d, want 200", resp.StatusCode)
@@ -279,6 +310,76 @@ func TestLabelMerge(t *testing.T) {
 	}
 }
 
+// TestLabelUpdateMerge проверяет симметрию merge на rename: переименование
+// ws-метки в имя существующих team-меток сливает их в эту ws-метку
+// (перепривязка issue_label + soft-delete team-меток).
+func TestLabelUpdateMerge(t *testing.T) {
+	t.Parallel()
+	srv, cookieName := setupServer(t)
+	db := dbtest.Open(t)
+	client := srv.Client()
+
+	wsID := dbtest.SeedWorkspace(t, db)
+	cleanupLabels(t, db, wsID)
+	m := seedMember(t, db, cookieName, wsID, model.WorkspaceRoleMember)
+	teamID := dbtest.SeedTeam(t, db, wsID)
+	statusID := dbtest.SeedStatus(t, db, teamID, "Todo", "planned", 0)
+	issueID, _ := dbtest.SeedIssue(t, db, teamID, statusID)
+
+	labelsURL := srv.URL + "/api/workspaces/" + wsID + "/labels"
+
+	// ws-level метка "A".
+	resp := doJSON(t, client, http.MethodPost, labelsURL, map[string]any{"name": "A", "color": "#3B82F6"}, m.cookie)
+	if resp.StatusCode != http.StatusCreated {
+		_ = resp.Body.Close()
+		t.Fatalf("create ws-level A: status = %d, want 201", resp.StatusCode)
+	}
+	var wsLabel struct {
+		ID string `json:"id"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&wsLabel); err != nil {
+		t.Fatalf("decode A: %v", err)
+	}
+	_ = resp.Body.Close()
+
+	// team-level метка "B" висит на задаче.
+	var teamLabel string
+	if err := db.Get(&teamLabel, `
+		INSERT INTO tracker.label (workspace_id, team_id, name, color)
+		VALUES ($1, $2, 'B', '#00FF00') RETURNING id`, wsID, teamID); err != nil {
+		t.Fatalf("seed team label B: %v", err)
+	}
+	dbtest.SeedIssueLabel(t, db, issueID, teamLabel)
+
+	// PATCH: переименовать ws-метку A → B → merge → 200
+	resp = doJSON(t, client, http.MethodPatch, labelsURL+"/"+wsLabel.ID, map[string]any{"name": "B"}, m.cookie)
+	if resp.StatusCode != http.StatusOK {
+		_ = resp.Body.Close()
+		t.Fatalf("rename merge: status = %d, want 200", resp.StatusCode)
+	}
+	_ = resp.Body.Close()
+
+	// team-метка "B" soft-deleted.
+	var teamActive int
+	if err := db.Get(&teamActive, `SELECT count(*) FROM tracker.label WHERE id = $1 AND deleted_at IS NULL`, teamLabel); err != nil {
+		t.Fatalf("count team label: %v", err)
+	}
+	if teamActive != 0 {
+		t.Errorf("team label active = %d, want 0 (soft-deleted)", teamActive)
+	}
+
+	// issue_label перепривязан на переименованную ws-метку.
+	var repointed int
+	if err := db.Get(&repointed, `
+		SELECT count(*) FROM tracker.issue_label
+		WHERE issue_id = $1 AND label_id = $2 AND deleted_at IS NULL`, issueID, wsLabel.ID); err != nil {
+		t.Fatalf("count repointed: %v", err)
+	}
+	if repointed != 1 {
+		t.Errorf("repointed links = %d, want 1", repointed)
+	}
+}
+
 // TestLabelMalformedID проверяет, что не-UUID в path/body парсится на границе и
 // отдаётся как 400, а не доходит до БД (иначе 22P02 → 500).
 func TestLabelMalformedID(t *testing.T) {
@@ -299,6 +400,7 @@ func TestLabelMalformedID(t *testing.T) {
 		method string
 		body   any
 	}{
+		{http.MethodGet, nil},
 		{http.MethodPatch, map[string]any{"name": "x"}},
 		{http.MethodDelete, nil},
 	} {

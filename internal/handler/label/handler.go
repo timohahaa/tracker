@@ -22,6 +22,7 @@ func New(services *service.Services) *chi.Mux {
 
 	mux.Get("/", h.list)
 	mux.Post("/", h.create)
+	mux.Get("/{labelID}", h.get)
 	mux.Patch("/{labelID}", h.update)
 	mux.Delete("/{labelID}", h.delete)
 
@@ -78,6 +79,33 @@ func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	httpx.RespondJSON(w, http.StatusCreated, toLabelResponse(label))
+}
+
+// get godoc
+//
+//	@Summary		Get a label
+//	@Description	Возвращает метку workspace по id (участник workspace).
+//	@Tags			label
+//	@Produce		json
+//	@Param			workspaceID	path		string	true	"Workspace ID"
+//	@Param			labelID		path		string	true	"Label ID"
+//	@Success		200			{object}	labelResponse
+//	@Failure		401			{object}	httpx.ErrorResponse
+//	@Failure		404			{object}	httpx.ErrorResponse
+//	@Router			/api/workspaces/{workspaceID}/labels/{labelID} [get]
+func (h *Handler) get(w http.ResponseWriter, r *http.Request) {
+	ws := middleware.WorkspaceFromContext(r.Context())
+	labelID, err := httpx.PathUUID(r, "labelID")
+	if err != nil {
+		httpx.RespondError(w, err)
+		return
+	}
+	label, err := h.services.Label.GetLabel(r.Context(), ws.ID, labelID)
+	if err != nil {
+		httpx.RespondError(w, err)
+		return
+	}
+	httpx.RespondJSON(w, http.StatusOK, toLabelResponse(label))
 }
 
 // update godoc

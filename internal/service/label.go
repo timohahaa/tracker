@@ -42,8 +42,8 @@ type UpdateLabelParams struct {
 // CreateLabel создаёт метку. Доступно любому участнику workspace (membership
 // гарантирован middleware LoadWorkspace). Правила (docs/tech/data-model.md):
 //   - team-level: команда обязана принадлежать workspace; нельзя создать
-//     team-метку с именем, которое уже занято на workspace-level; дубль внутри
-//     команды ловит партиал-индекс → errs.AlreadyExists (409).
+//     team-метку с именем, которое уже занято на workspace-level → errs.AlreadyExists
+//     (409); дубль внутри команды ловит партиал-индекс → errs.AlreadyExists (409).
 //   - workspace-level: если существуют одноимённые team-метки — merge (создать
 //     ws-метку, перепривязать issue_label со старых меток, старые пометить
 //     удалёнными) атомарно в транзакции; иначе обычная вставка (дубль ws-level
@@ -65,15 +65,7 @@ func (s *LabelService) createTeamLabel(ctx context.Context, workspaceID, teamID 
 	if err := s.validateTeam(ctx, workspaceID, teamID); err != nil {
 		return model.Label{}, err
 	}
-
-	// Нельзя завести team-метку поверх существующей workspace-level метки.
-	if _, err := s.repos.Label().GetWorkspaceLabelByName(ctx, workspaceID, params.Name); err == nil {
-		return model.Label{}, errs.Validation("workspace-level label with this name already exists", errs.FieldError{
-			Field:   "name",
-			Reason:  "conflict",
-			Message: "a workspace-level label with this name already exists",
-		})
-	} else if !isNotFound(err) {
+	if err := s.ensureNoWorkspaceShadow(ctx, workspaceID, params.Name); err != nil {
 		return model.Label{}, err
 	}
 
@@ -101,11 +93,6 @@ func (s *LabelService) createWorkspaceLabel(ctx context.Context, workspaceID str
 		})
 	}
 
-	oldIDs := make([]string, len(teamLabels))
-	for i, l := range teamLabels {
-		oldIDs[i] = l.ID
-	}
-
 	var created model.Label
 	err = s.repos.WithTx(ctx, func(tx repository.Store) error {
 		var cerr error
@@ -117,15 +104,7 @@ func (s *LabelService) createWorkspaceLabel(ctx context.Context, workspaceID str
 		if cerr != nil {
 			return cerr
 		}
-		if rerr := tx.Label().RepointIssueLabels(ctx, oldIDs, created.ID); rerr != nil {
-			return rerr
-		}
-		for _, id := range oldIDs {
-			if derr := tx.Label().Delete(ctx, id); derr != nil {
-				return derr
-			}
-		}
-		return nil
+		return repointAndDeleteTeamLabels(ctx, tx, labelIDs(teamLabels), created.ID)
 	})
 	if err != nil {
 		return model.Label{}, err
@@ -146,16 +125,21 @@ func (s *LabelService) ListLabels(ctx context.Context, workspaceID string) ([]mo
 }
 
 // UpdateLabel частично обновляет name/color метки. Доступно участнику workspace.
-// Невалидный цвет → errs.Validation; дубль имени → errs.AlreadyExists (409).
+// Кросс-уровневые правила симметричны CreateLabel и применяются только при
+// реальной смене имени:
+//   - team-level rename: нельзя затенять одноимённую ws-метку → errs.AlreadyExists
+//     (409); дубль внутри своей команды ловит партиал-индекс → 409.
+//   - workspace-level rename в имя, под которым есть team-метки — merge
+//     (перепривязать issue_label на эту метку, старые team-метки пометить
+//     удалёнными) атомарно в транзакции.
+//
+// Невалидный цвет → errs.Validation (400); нет метки → errs.NotFound (404).
 func (s *LabelService) UpdateLabel(ctx context.Context, actor model.WorkspaceMember, labelID string, params UpdateLabelParams) (model.Label, error) {
 	label, err := s.repos.Label().GetByID(ctx, actor.WorkspaceID, labelID)
 	if err != nil {
 		return model.Label{}, err
 	}
 
-	if params.Name != nil {
-		label.Name = *params.Name
-	}
 	if params.Color != nil {
 		if err := validateColor(*params.Color); err != nil {
 			return model.Label{}, err
@@ -163,7 +147,43 @@ func (s *LabelService) UpdateLabel(ctx context.Context, actor model.WorkspaceMem
 		label.Color = *params.Color
 	}
 
-	return s.repos.Label().Update(ctx, label)
+	// Кросс-уровневые правила проверяем только при фактической смене имени —
+	// иначе PATCH одного цвета конфликтовал бы сам с собой.
+	renaming := params.Name != nil && *params.Name != label.Name
+	if !renaming {
+		return s.repos.Label().Update(ctx, label)
+	}
+	label.Name = *params.Name
+
+	if label.TeamID != nil {
+		if err := s.ensureNoWorkspaceShadow(ctx, actor.WorkspaceID, label.Name); err != nil {
+			return model.Label{}, err
+		}
+		return s.repos.Label().Update(ctx, label)
+	}
+
+	// workspace-level rename: слить одноимённые team-метки в эту метку.
+	teamLabels, err := s.repos.Label().ListTeamLabelsByName(ctx, actor.WorkspaceID, label.Name)
+	if err != nil {
+		return model.Label{}, err
+	}
+	if len(teamLabels) == 0 {
+		return s.repos.Label().Update(ctx, label)
+	}
+
+	var updated model.Label
+	err = s.repos.WithTx(ctx, func(tx repository.Store) error {
+		var uerr error
+		updated, uerr = tx.Label().Update(ctx, label)
+		if uerr != nil {
+			return uerr
+		}
+		return repointAndDeleteTeamLabels(ctx, tx, labelIDs(teamLabels), updated.ID)
+	})
+	if err != nil {
+		return model.Label{}, err
+	}
+	return updated, nil
 }
 
 // DeleteLabel мягко удаляет метку. Доступно участнику workspace.
@@ -173,6 +193,52 @@ func (s *LabelService) DeleteLabel(ctx context.Context, actor model.WorkspaceMem
 		return err
 	}
 	return s.repos.Label().Delete(ctx, label.ID)
+}
+
+// ensureNoWorkspaceShadow проверяет, что имя не занято активной workspace-level
+// меткой. Занято → errs.AlreadyExists (409). Единый код с обычным дублем: раз
+// обратное направление (ws поверх team) разрешено через merge, коллизия
+// team↔ws — это конфликт уникальности имени, а не ошибка ввода.
+//
+// TOCTOU: проверка read-then-write без блокировки; БД кросс-уровневые правила не
+// гарантирует (партиал-индексы держат уникальность лишь внутри своего уровня).
+// При конкурентном создании возможно появление team-метки рядом с одноимённой
+// ws-меткой. Для MVP допустимо; надёжное решение — advisory-lock по
+// (workspace_id, name) — вынесено в бэклог.
+func (s *LabelService) ensureNoWorkspaceShadow(ctx context.Context, workspaceID, name string) error {
+	if _, err := s.repos.Label().GetWorkspaceLabelByName(ctx, workspaceID, name); err == nil {
+		return errs.AlreadyExists("a workspace-level label with this name already exists")
+	} else if !isNotFound(err) {
+		return err
+	}
+	return nil
+}
+
+// repointAndDeleteTeamLabels сливает team-метки в целевую: перепривязывает их
+// issue_label на targetID и мягко удаляет сами метки. Вызывается в рамках
+// merge-транзакции (create/update ws-метки).
+//
+// TOCTOU: набор team-меток вычислен до транзакции; team-метка, созданная во
+// время merge, не будет перепривязана (см. комментарий ensureNoWorkspaceShadow).
+func repointAndDeleteTeamLabels(ctx context.Context, tx repository.Store, oldIDs []string, targetID string) error {
+	if rerr := tx.Label().RepointIssueLabels(ctx, oldIDs, targetID); rerr != nil {
+		return rerr
+	}
+	for _, id := range oldIDs {
+		if derr := tx.Label().Delete(ctx, id); derr != nil {
+			return derr
+		}
+	}
+	return nil
+}
+
+// labelIDs извлекает id из набора меток.
+func labelIDs(labels []model.Label) []string {
+	ids := make([]string, len(labels))
+	for i, l := range labels {
+		ids[i] = l.ID
+	}
+	return ids
 }
 
 // validateTeam проверяет, что команда принадлежит workspace. Иначе
