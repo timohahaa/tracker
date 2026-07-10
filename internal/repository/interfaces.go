@@ -7,7 +7,7 @@ import (
 	"github.com/timohahaa/tracker/internal/model"
 )
 
-//go:generate go tool mockgen -destination=mocks/mocks.go -package=repomocks github.com/timohahaa/tracker/internal/repository Store,UserRepository,SessionRepository,TokenRepository,WorkspaceRepository,TeamRepository,StatusRepository,IssueRepository,ProjectRepository
+//go:generate go tool mockgen -destination=mocks/mocks.go -package=repomocks github.com/timohahaa/tracker/internal/repository Store,UserRepository,SessionRepository,TokenRepository,WorkspaceRepository,TeamRepository,StatusRepository,IssueRepository,ProjectRepository,LabelRepository
 
 // Интерфейсы репозиториев — шов между service и repository. Конкретные *XRepo
 // реализуют их структурно; сервисы работают через интерфейсы, что позволяет
@@ -27,7 +27,7 @@ type Store interface {
 	Status() StatusRepository
 	Issue() IssueRepository
 	Project() ProjectRepository
-	Label() *LabelRepo
+	Label() LabelRepository
 	Integration() *IntegrationRepo
 	Attachment() *AttachmentRepo
 	Invite() *InviteRepo
@@ -153,6 +153,23 @@ type ProjectRepository interface {
 	RemoveTeam(ctx context.Context, projectID, teamID string) error
 }
 
+// LabelRepository — доступ к tracker.label и tracker.issue_label. Метки бывают
+// workspace-level (team_id IS NULL) и team-level. Все read-методы фильтруют
+// deleted_at IS NULL. RepointIssueLabels работает и на пуле, и на транзакции;
+// атомарный merge (создание ws-метки + перепривязка + soft-delete старых)
+// оркеструется сервисом через WithTx.
+type LabelRepository interface {
+	Create(ctx context.Context, l model.Label) (model.Label, error)
+	GetByID(ctx context.Context, workspaceID, labelID string) (model.Label, error)
+	List(ctx context.Context, workspaceID string) ([]model.Label, error)
+	Update(ctx context.Context, l model.Label) (model.Label, error)
+	Delete(ctx context.Context, labelID string) error
+
+	GetWorkspaceLabelByName(ctx context.Context, workspaceID, name string) (model.Label, error)
+	ListTeamLabelsByName(ctx context.Context, workspaceID, name string) ([]model.Label, error)
+	RepointIssueLabels(ctx context.Context, fromLabelIDs []string, toLabelID string) error
+}
+
 // Компайл-тайм проверки соответствия конкретных репозиториев интерфейсам.
 var (
 	_ UserRepository      = (*UserRepo)(nil)
@@ -163,5 +180,6 @@ var (
 	_ StatusRepository    = (*StatusRepo)(nil)
 	_ IssueRepository     = (*IssueRepo)(nil)
 	_ ProjectRepository   = (*ProjectRepo)(nil)
+	_ LabelRepository     = (*LabelRepo)(nil)
 	_ Store               = (*Repositories)(nil)
 )

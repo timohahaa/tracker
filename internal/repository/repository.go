@@ -28,7 +28,7 @@ type Repositories struct {
 	status      StatusRepository
 	issue       IssueRepository
 	project     ProjectRepository
-	label       *LabelRepo
+	label       LabelRepository
 	integration *IntegrationRepo
 	attachment  *AttachmentRepo
 	invite      *InviteRepo
@@ -71,7 +71,7 @@ func (r *Repositories) Team() TeamRepository           { return r.team }
 func (r *Repositories) Status() StatusRepository       { return r.status }
 func (r *Repositories) Issue() IssueRepository         { return r.issue }
 func (r *Repositories) Project() ProjectRepository     { return r.project }
-func (r *Repositories) Label() *LabelRepo              { return r.label }
+func (r *Repositories) Label() LabelRepository         { return r.label }
 func (r *Repositories) Integration() *IntegrationRepo  { return r.integration }
 func (r *Repositories) Attachment() *AttachmentRepo    { return r.attachment }
 func (r *Repositories) Invite() *InviteRepo            { return r.invite }
