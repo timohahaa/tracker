@@ -38,6 +38,10 @@ func wireAssigneeStore(t *testing.T) (*repomocks.MockStore, *repomocks.MockTeamR
 	issues.EXPECT().GetByID(gomock.Any(), "ws-1", issueUUID).
 		Return(model.IssueDetails{Issue: model.Issue{ID: issueUUID, TeamID: "team-1"}}, nil).AnyTimes()
 
+	// UpdateIssue стартует с GetIssue, который теперь обогащает и метки; метки в
+	// этих тестах не проверяются — разрешаем произвольный вызов без набора.
+	issues.EXPECT().ListLabels(gomock.Any(), issueUUID).Return(nil, nil).AnyTimes()
+
 	return store, teams, issues
 }
 

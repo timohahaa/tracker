@@ -16,21 +16,23 @@ import (
 const dateLayout = "2006-01-02"
 
 // createIssueRequest — тело POST /issues. team_id/title обязательны, остальное
-// опционально. due_date — дата в формате YYYY-MM-DD.
+// опционально. due_date — дата в формате YYYY-MM-DD. label_ids — набор меток
+// (workspace-level или команды задачи); nil = без меток.
 type createIssueRequest struct {
-	TeamID      string  `json:"team_id" validate:"required,uuid"`
-	Title       string  `json:"title" validate:"required,min=1"`
-	Description *string `json:"description"`
-	StatusID    *string `json:"status_id" validate:"omitempty,uuid"`
-	ProjectID   *string `json:"project_id" validate:"omitempty,uuid"`
-	Priority    string  `json:"priority" validate:"omitempty,oneof=none urgent high medium low"`
-	DueDate     *string `json:"due_date" validate:"omitempty,datetime=2006-01-02"`
+	TeamID      string    `json:"team_id" validate:"required,uuid"`
+	Title       string    `json:"title" validate:"required,min=1"`
+	Description *string   `json:"description"`
+	StatusID    *string   `json:"status_id" validate:"omitempty,uuid"`
+	ProjectID   *string   `json:"project_id" validate:"omitempty,uuid"`
+	Priority    string    `json:"priority" validate:"omitempty,oneof=none urgent high medium low"`
+	DueDate     *string   `json:"due_date" validate:"omitempty,datetime=2006-01-02"`
+	LabelIDs    *[]string `json:"label_ids" validate:"omitempty,dive,uuid"`
 }
 
 // updateIssueRequest — тело PATCH /issues/{issueID}. Все поля опциональны
-// (partial update): nil означает «не менять». Для assignees: nil (поле не
-// прислано) = «не трогать»; присланный массив (в т.ч. пустой) = replace всего
-// набора (пустой = снять всех).
+// (partial update): nil означает «не менять». Для assignees/label_ids: nil (поле
+// не прислано) = «не трогать»; присланный массив (в т.ч. пустой) = replace всего
+// набора (пустой = снять все).
 type updateIssueRequest struct {
 	Title       *string          `json:"title" validate:"omitempty,min=1"`
 	Description *string          `json:"description"`
@@ -39,6 +41,7 @@ type updateIssueRequest struct {
 	Priority    *string          `json:"priority" validate:"omitempty,oneof=none urgent high medium low"`
 	DueDate     *string          `json:"due_date" validate:"omitempty,datetime=2006-01-02"`
 	Assignees   *[]assigneeInput `json:"assignees" validate:"omitempty,dive"`
+	LabelIDs    *[]string        `json:"label_ids" validate:"omitempty,dive,uuid"`
 }
 
 // assigneeInput — элемент набора assignees в PATCH-replace.
@@ -271,6 +274,7 @@ func (r createIssueRequest) toParams() (service.CreateIssueParams, error) {
 		ProjectID:   nilIfEmpty(r.ProjectID),
 		Priority:    model.Priority(r.Priority),
 		DueDate:     due,
+		LabelIDs:    r.LabelIDs,
 	}, nil
 }
 
@@ -300,6 +304,7 @@ func (r updateIssueRequest) toParams() (service.UpdateIssueParams, error) {
 		Priority:    priority,
 		DueDate:     due,
 		Assignees:   assignees,
+		LabelIDs:    r.LabelIDs,
 	}, nil
 }
 

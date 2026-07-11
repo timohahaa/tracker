@@ -189,7 +189,9 @@ func TestCreateAndGetIssue(t *testing.T) {
 }
 
 // TestIssueMalformedIDs проверяет, что мусорные UUID в теле и в path отсекаются
-// на границе (400), а пустая строка project_id трактуется как «без проекта».
+// на границе (400). Пустая строка project_id — тоже невалидный UUID (тег
+// omitempty,uuid не пропускает не-nil указатель на ""), поэтому 400; очистка
+// project_id делается отдельной ручкой DELETE /issues/{id}/project.
 func TestIssueMalformedIDs(t *testing.T) {
 	t.Parallel()
 	srv, cookieName := setupServer(t)
@@ -218,10 +220,18 @@ func TestIssueMalformedIDs(t *testing.T) {
 	}
 	_ = resp.Body.Close()
 
-	// project_id пустая строка → нормализуется в nil → без проекта, 201
-	resp = doJSON(t, client, http.MethodPost, issuesURL, map[string]any{"team_id": teamID, "title": "NoProject", "project_id": ""}, creator.cookie)
+	// project_id пустая строка → невалидный UUID (omitempty не пропускает
+	// не-nil указатель на "") → 400
+	resp = doJSON(t, client, http.MethodPost, issuesURL, map[string]any{"team_id": teamID, "title": "EmptyProject", "project_id": ""}, creator.cookie)
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("empty project_id: status = %d, want 400", resp.StatusCode)
+	}
+	_ = resp.Body.Close()
+
+	// валидная задача без project_id для последующих проверок path/PATCH
+	resp = doJSON(t, client, http.MethodPost, issuesURL, map[string]any{"team_id": teamID, "title": "NoProject"}, creator.cookie)
 	if resp.StatusCode != http.StatusCreated {
-		t.Fatalf("empty project_id: status = %d, want 201", resp.StatusCode)
+		t.Fatalf("create issue: status = %d, want 201", resp.StatusCode)
 	}
 	var created struct {
 		ID        string  `json:"id"`
@@ -232,7 +242,7 @@ func TestIssueMalformedIDs(t *testing.T) {
 	}
 	_ = resp.Body.Close()
 	if created.ProjectID != nil {
-		t.Fatalf("empty project_id: project_id = %v, want nil", *created.ProjectID)
+		t.Fatalf("no project_id: project_id = %v, want nil", *created.ProjectID)
 	}
 
 	// PATCH с мусорным project_id → 400
@@ -246,6 +256,90 @@ func TestIssueMalformedIDs(t *testing.T) {
 	resp = doJSON(t, client, http.MethodDelete, issuesURL+"/"+created.ID+"/assignees/garbage", nil, creator.cookie)
 	if resp.StatusCode != http.StatusBadRequest {
 		t.Fatalf("garbage assignee userID: status = %d, want 400", resp.StatusCode)
+	}
+	_ = resp.Body.Close()
+}
+
+// TestIssueRemoveProject проверяет отдельную ручку отвязки задачи от проекта:
+// DELETE .../project очищает project_id (PATCH умеет только задавать),
+// идемпотентно, с авторизацией по членству в команде.
+func TestIssueRemoveProject(t *testing.T) {
+	t.Parallel()
+	srv, cookieName := setupServer(t)
+	db := dbtest.Open(t)
+	client := srv.Client()
+
+	wsID := dbtest.SeedWorkspace(t, db)
+	creator := seedMember(t, db, cookieName, wsID, model.WorkspaceRoleMember)
+	outsider := seedMember(t, db, cookieName, wsID, model.WorkspaceRoleMember)
+
+	projectID := dbtest.SeedProject(t, db, wsID)
+	// «add team to project» при создании задачи с проектом создаёт junction —
+	// подчищаем его до удаления проекта (FK-порядок).
+	t.Cleanup(func() { _, _ = db.Exec(`DELETE FROM tracker.project_team WHERE project_id = $1`, projectID) })
+
+	teamsURL := srv.URL + "/api/workspaces/" + wsID + "/teams"
+	teamID, _ := createTeam(t, client, db, teamsURL, creator.cookie)
+
+	issuesURL := srv.URL + "/api/workspaces/" + wsID + "/issues"
+
+	// создать задачу с проектом → 201
+	resp := doJSON(t, client, http.MethodPost, issuesURL, map[string]any{
+		"team_id":    teamID,
+		"title":      "Attached",
+		"project_id": projectID,
+	}, creator.cookie)
+	if resp.StatusCode != http.StatusCreated {
+		_ = resp.Body.Close()
+		t.Fatalf("create issue: status = %d, want 201", resp.StatusCode)
+	}
+	var created struct {
+		ID        string  `json:"id"`
+		ProjectID *string `json:"project_id"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&created); err != nil {
+		t.Fatalf("decode created: %v", err)
+	}
+	_ = resp.Body.Close()
+	if created.ProjectID == nil || *created.ProjectID != projectID {
+		t.Fatalf("created project_id = %v, want %s", created.ProjectID, projectID)
+	}
+	projectURL := issuesURL + "/" + created.ID + "/project"
+
+	// без cookie → 401
+	resp = doJSON(t, client, http.MethodDelete, projectURL, nil)
+	if resp.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("no cookie: status = %d, want 401", resp.StatusCode)
+	}
+	_ = resp.Body.Close()
+
+	// не участник команды → 403
+	resp = doJSON(t, client, http.MethodDelete, projectURL, nil, outsider.cookie)
+	if resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("non-team-member: status = %d, want 403", resp.StatusCode)
+	}
+	_ = resp.Body.Close()
+
+	// отвязать проект → 200, project_id очищен
+	resp = doJSON(t, client, http.MethodDelete, projectURL, nil, creator.cookie)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("remove project: status = %d, want 200", resp.StatusCode)
+	}
+	var cleared struct {
+		ProjectID *string `json:"project_id"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&cleared); err != nil {
+		t.Fatalf("decode cleared: %v", err)
+	}
+	_ = resp.Body.Close()
+	if cleared.ProjectID != nil {
+		t.Fatalf("project_id = %v, want nil", *cleared.ProjectID)
+	}
+
+	// повторный DELETE идемпотентен → 200
+	resp = doJSON(t, client, http.MethodDelete, projectURL, nil, creator.cookie)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("idempotent remove project: status = %d, want 200", resp.StatusCode)
 	}
 	_ = resp.Body.Close()
 }

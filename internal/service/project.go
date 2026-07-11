@@ -214,6 +214,23 @@ func (s *ProjectService) UpdateProject(ctx context.Context, actor model.Workspac
 	return s.enrichTeams(ctx, updated)
 }
 
+// RemoveLead снимает ведущего проекта (lead_id → NULL). Доступно участнику
+// workspace (как UpdateProject). Идемпотентно: снятие у проекта без лида —
+// не ошибка. PATCH выражает только установку/«не трогать»; очистка nullable-FK
+// делается этой отдельной ручкой.
+func (s *ProjectService) RemoveLead(ctx context.Context, actor model.WorkspaceMember, projectID string) (model.ProjectDetails, error) {
+	project, err := s.repos.Project().GetByID(ctx, actor.WorkspaceID, projectID)
+	if err != nil {
+		return model.ProjectDetails{}, err
+	}
+	project.LeadID = nil
+	updated, err := s.repos.Project().Update(ctx, project)
+	if err != nil {
+		return model.ProjectDetails{}, err
+	}
+	return s.enrichTeams(ctx, updated)
+}
+
 // DeleteProject мягко удаляет проект. Доступно только owner/admin workspace.
 func (s *ProjectService) DeleteProject(ctx context.Context, actor model.WorkspaceMember, projectID string) error {
 	if !canManageWorkspace(actor.Role) {

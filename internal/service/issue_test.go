@@ -66,6 +66,8 @@ func TestCreateIssue_GeneratesNumberAndDefaultsToBacklogStatus(t *testing.T) {
 			i.ID = "issue-1"
 			return i, nil
 		})
+	// CreateIssue обогащает метки на выходе (набор label_ids не задан).
+	issues.EXPECT().ListLabels(gomock.Any(), gomock.Any()).Return(nil, nil).AnyTimes()
 
 	got, err := newIssueService(store).CreateIssue(context.Background(), issueActor(), CreateIssueParams{
 		TeamID: "team-1",
@@ -119,6 +121,7 @@ func TestCreateIssue_UsesGivenStatus(t *testing.T) {
 			created = i
 			return i, nil
 		})
+	issues.EXPECT().ListLabels(gomock.Any(), gomock.Any()).Return(nil, nil).AnyTimes()
 
 	status := "st-custom"
 	if _, err := newIssueService(store).CreateIssue(context.Background(), issueActor(), CreateIssueParams{
@@ -214,6 +217,7 @@ func TestCreateIssue_AddsTeamToProject(t *testing.T) {
 	// «add team to project»: команда задачи автоматически добавляется в проект.
 	projects.EXPECT().AddTeam(gomock.Any(), "proj-1", "team-1").
 		Return(model.ProjectTeam{ProjectID: "proj-1", TeamID: "team-1"}, nil)
+	issues.EXPECT().ListLabels(gomock.Any(), gomock.Any()).Return(nil, nil).AnyTimes()
 
 	status := "st-1"
 	project := "proj-1"
@@ -272,6 +276,7 @@ func TestGetIssue_DispatchesByUUID(t *testing.T) {
 	const id = "00000000-0000-0000-0000-000000000001"
 	issues.EXPECT().GetByID(gomock.Any(), "ws-1", id).Return(model.IssueDetails{Issue: model.Issue{ID: id}}, nil)
 	issues.EXPECT().ListAssignees(gomock.Any(), id).Return(nil, nil)
+	issues.EXPECT().ListLabels(gomock.Any(), id).Return(nil, nil)
 	// GetByIdentifier не вызывается: ref — валидный UUID.
 
 	if _, err := newIssueService(store).GetIssue(context.Background(), "ws-1", id); err != nil {
@@ -288,6 +293,7 @@ func TestGetIssue_DispatchesByIdentifier(t *testing.T) {
 	// key нормализуется в верхний регистр, номер парсится как int.
 	issues.EXPECT().GetByIdentifier(gomock.Any(), "ws-1", "ENG", 7).Return(model.IssueDetails{}, nil)
 	issues.EXPECT().ListAssignees(gomock.Any(), gomock.Any()).Return(nil, nil)
+	issues.EXPECT().ListLabels(gomock.Any(), gomock.Any()).Return(nil, nil)
 	// GetByID не вызывается: ref — identifier.
 
 	if _, err := newIssueService(store).GetIssue(context.Background(), "ws-1", "eng-7"); err != nil {
@@ -318,6 +324,7 @@ func TestUpdateIssue_ForbiddenWithoutTeamMembership(t *testing.T) {
 	issues.EXPECT().GetByID(gomock.Any(), "ws-1", id).
 		Return(model.IssueDetails{Issue: model.Issue{ID: id, TeamID: "team-1"}}, nil)
 	issues.EXPECT().ListAssignees(gomock.Any(), gomock.Any()).Return(nil, nil).AnyTimes()
+	issues.EXPECT().ListLabels(gomock.Any(), gomock.Any()).Return(nil, nil).AnyTimes()
 	teams.EXPECT().GetMember(gomock.Any(), "team-1", "user-1").Return(model.TeamMember{}, errs.NotFound("resource not found"))
 	// Update не вызывается: не участник команды.
 
@@ -343,6 +350,7 @@ func TestUpdateIssue_AppliesFieldsAndValidatesStatus(t *testing.T) {
 			Identifier: "ENG-1",
 		}, nil)
 	issues.EXPECT().ListAssignees(gomock.Any(), gomock.Any()).Return(nil, nil).AnyTimes()
+	issues.EXPECT().ListLabels(gomock.Any(), gomock.Any()).Return(nil, nil).AnyTimes()
 	teams.EXPECT().GetMember(gomock.Any(), "team-1", "user-1").Return(teamMember(), nil)
 	statuses.EXPECT().Get(gomock.Any(), "team-1", "st-new").
 		Return(model.Status{ID: "st-new", TeamID: "team-1"}, nil)
@@ -383,6 +391,7 @@ func TestUpdateIssue_InvalidStatusValidation(t *testing.T) {
 	issues.EXPECT().GetByID(gomock.Any(), "ws-1", id).
 		Return(model.IssueDetails{Issue: model.Issue{ID: id, TeamID: "team-1"}}, nil)
 	issues.EXPECT().ListAssignees(gomock.Any(), gomock.Any()).Return(nil, nil).AnyTimes()
+	issues.EXPECT().ListLabels(gomock.Any(), gomock.Any()).Return(nil, nil).AnyTimes()
 	teams.EXPECT().GetMember(gomock.Any(), "team-1", "user-1").Return(teamMember(), nil)
 	statuses.EXPECT().Get(gomock.Any(), "team-1", "st-x").Return(model.Status{}, errs.NotFound("resource not found"))
 	// Update не вызывается: новый статус не принадлежит команде.
@@ -405,6 +414,7 @@ func TestDeleteIssue_Success(t *testing.T) {
 	issues.EXPECT().GetByID(gomock.Any(), "ws-1", id).
 		Return(model.IssueDetails{Issue: model.Issue{ID: id, TeamID: "team-1"}}, nil)
 	issues.EXPECT().ListAssignees(gomock.Any(), gomock.Any()).Return(nil, nil).AnyTimes()
+	issues.EXPECT().ListLabels(gomock.Any(), gomock.Any()).Return(nil, nil).AnyTimes()
 	teams.EXPECT().GetMember(gomock.Any(), "team-1", "user-1").Return(teamMember(), nil)
 	issues.EXPECT().Delete(gomock.Any(), id).Return(nil)
 
@@ -425,9 +435,106 @@ func TestDeleteIssue_ForbiddenWithoutTeamMembership(t *testing.T) {
 	issues.EXPECT().GetByID(gomock.Any(), "ws-1", id).
 		Return(model.IssueDetails{Issue: model.Issue{ID: id, TeamID: "team-1"}}, nil)
 	issues.EXPECT().ListAssignees(gomock.Any(), gomock.Any()).Return(nil, nil).AnyTimes()
+	issues.EXPECT().ListLabels(gomock.Any(), gomock.Any()).Return(nil, nil).AnyTimes()
 	teams.EXPECT().GetMember(gomock.Any(), "team-1", "user-1").Return(model.TeamMember{}, errs.NotFound("resource not found"))
 	// Delete не вызывается: не участник команды.
 
 	err := newIssueService(store).DeleteIssue(context.Background(), issueActor(), id)
+	assertAppErrCode(t, err, errs.CodeForbidden)
+}
+
+// --- RemoveProject ---
+
+func TestRemoveProject_ClearsProjectAndEnriches(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	store := repomocks.NewMockStore(ctrl)
+	teams := repomocks.NewMockTeamRepository(ctrl)
+	issues := repomocks.NewMockIssueRepository(ctrl)
+	store.EXPECT().Team().Return(teams).AnyTimes()
+	store.EXPECT().Issue().Return(issues).AnyTimes()
+
+	const id = "00000000-0000-0000-0000-000000000001"
+	project := "proj-1"
+	issues.EXPECT().GetByID(gomock.Any(), "ws-1", id).
+		Return(model.IssueDetails{
+			Issue:      model.Issue{ID: id, TeamID: "team-1", ProjectID: &project},
+			TeamKey:    "ENG",
+			Identifier: "ENG-1",
+		}, nil)
+	issues.EXPECT().ListAssignees(gomock.Any(), gomock.Any()).Return(nil, nil).AnyTimes()
+	issues.EXPECT().ListLabels(gomock.Any(), gomock.Any()).Return(nil, nil).AnyTimes()
+	teams.EXPECT().GetMember(gomock.Any(), "team-1", "user-1").Return(teamMember(), nil)
+	// Отвязка не тянет побочку «add team to project»: Project().AddTeam не ожидается.
+
+	var saved model.Issue
+	issues.EXPECT().Update(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, i model.Issue) (model.Issue, error) {
+			saved = i
+			return i, nil
+		})
+
+	got, err := newIssueService(store).RemoveProject(context.Background(), issueActor(), id)
+	if err != nil {
+		t.Fatalf("RemoveProject: %v", err)
+	}
+	if saved.ProjectID != nil {
+		t.Errorf("saved project_id = %v, want nil", *saved.ProjectID)
+	}
+	if got.ProjectID != nil {
+		t.Errorf("returned project_id = %v, want nil", *got.ProjectID)
+	}
+	if got.Identifier != "ENG-1" || got.TeamKey != "ENG" {
+		t.Errorf("details = (%q, %q), want (ENG-1, ENG)", got.Identifier, got.TeamKey)
+	}
+}
+
+func TestRemoveProject_IdempotentWhenAlreadyNull(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	store := repomocks.NewMockStore(ctrl)
+	teams := repomocks.NewMockTeamRepository(ctrl)
+	issues := repomocks.NewMockIssueRepository(ctrl)
+	store.EXPECT().Team().Return(teams).AnyTimes()
+	store.EXPECT().Issue().Return(issues).AnyTimes()
+
+	const id = "00000000-0000-0000-0000-000000000001"
+	issues.EXPECT().GetByID(gomock.Any(), "ws-1", id).
+		Return(model.IssueDetails{Issue: model.Issue{ID: id, TeamID: "team-1", ProjectID: nil}}, nil)
+	issues.EXPECT().ListAssignees(gomock.Any(), gomock.Any()).Return(nil, nil).AnyTimes()
+	issues.EXPECT().ListLabels(gomock.Any(), gomock.Any()).Return(nil, nil).AnyTimes()
+	teams.EXPECT().GetMember(gomock.Any(), "team-1", "user-1").Return(teamMember(), nil)
+
+	var saved model.Issue
+	issues.EXPECT().Update(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, i model.Issue) (model.Issue, error) {
+			saved = i
+			return i, nil
+		})
+
+	if _, err := newIssueService(store).RemoveProject(context.Background(), issueActor(), id); err != nil {
+		t.Fatalf("RemoveProject: %v", err)
+	}
+	if saved.ProjectID != nil {
+		t.Errorf("saved project_id = %v, want nil", *saved.ProjectID)
+	}
+}
+
+func TestRemoveProject_ForbiddenWithoutTeamMembership(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	store := repomocks.NewMockStore(ctrl)
+	teams := repomocks.NewMockTeamRepository(ctrl)
+	issues := repomocks.NewMockIssueRepository(ctrl)
+	store.EXPECT().Team().Return(teams).AnyTimes()
+	store.EXPECT().Issue().Return(issues).AnyTimes()
+
+	const id = "00000000-0000-0000-0000-000000000001"
+	project := "proj-1"
+	issues.EXPECT().GetByID(gomock.Any(), "ws-1", id).
+		Return(model.IssueDetails{Issue: model.Issue{ID: id, TeamID: "team-1", ProjectID: &project}}, nil)
+	issues.EXPECT().ListAssignees(gomock.Any(), gomock.Any()).Return(nil, nil).AnyTimes()
+	issues.EXPECT().ListLabels(gomock.Any(), gomock.Any()).Return(nil, nil).AnyTimes()
+	teams.EXPECT().GetMember(gomock.Any(), "team-1", "user-1").Return(model.TeamMember{}, errs.NotFound("resource not found"))
+	// Update не вызывается: не участник команды.
+
+	_, err := newIssueService(store).RemoveProject(context.Background(), issueActor(), id)
 	assertAppErrCode(t, err, errs.CodeForbidden)
 }

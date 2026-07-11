@@ -224,6 +224,77 @@ func TestUpdateProject_SimplePathWithoutTeams(t *testing.T) {
 	}
 }
 
+// --- RemoveLead ---
+
+func TestRemoveLead_ClearsLead(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	store := repomocks.NewMockStore(ctrl)
+	projects := repomocks.NewMockProjectRepository(ctrl)
+	store.EXPECT().Project().Return(projects).AnyTimes()
+
+	lead := "lead-1"
+	projects.EXPECT().GetByID(gomock.Any(), "ws-1", "proj-1").
+		Return(model.Project{ID: "proj-1", WorkspaceID: "ws-1", LeadID: &lead}, nil)
+
+	var saved model.Project
+	projects.EXPECT().Update(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, p model.Project) (model.Project, error) {
+			saved = p
+			return p, nil
+		})
+	projects.EXPECT().ListTeams(gomock.Any(), "proj-1").Return(nil, nil)
+
+	got, err := newProjectService(store).RemoveLead(context.Background(), projectActor(model.WorkspaceRoleMember), "proj-1")
+	if err != nil {
+		t.Fatalf("RemoveLead: %v", err)
+	}
+	if saved.LeadID != nil {
+		t.Errorf("saved lead_id = %v, want nil", *saved.LeadID)
+	}
+	if got.LeadID != nil {
+		t.Errorf("returned lead_id = %v, want nil", *got.LeadID)
+	}
+}
+
+func TestRemoveLead_IdempotentWhenAlreadyNull(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	store := repomocks.NewMockStore(ctrl)
+	projects := repomocks.NewMockProjectRepository(ctrl)
+	store.EXPECT().Project().Return(projects).AnyTimes()
+
+	projects.EXPECT().GetByID(gomock.Any(), "ws-1", "proj-1").
+		Return(model.Project{ID: "proj-1", WorkspaceID: "ws-1", LeadID: nil}, nil)
+
+	var saved model.Project
+	projects.EXPECT().Update(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, p model.Project) (model.Project, error) {
+			saved = p
+			return p, nil
+		})
+	projects.EXPECT().ListTeams(gomock.Any(), "proj-1").Return(nil, nil)
+
+	if _, err := newProjectService(store).RemoveLead(context.Background(), projectActor(model.WorkspaceRoleMember), "proj-1"); err != nil {
+		t.Fatalf("RemoveLead: %v", err)
+	}
+	if saved.LeadID != nil {
+		t.Errorf("saved lead_id = %v, want nil", *saved.LeadID)
+	}
+}
+
+func TestRemoveLead_NotFound(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	store := repomocks.NewMockStore(ctrl)
+	projects := repomocks.NewMockProjectRepository(ctrl)
+	store.EXPECT().Project().Return(projects).AnyTimes()
+
+	projects.EXPECT().GetByID(gomock.Any(), "ws-1", "missing").
+		Return(model.Project{}, errs.NotFound("resource not found"))
+	// Update не ожидается: проект не найден.
+
+	_, err := newProjectService(store).RemoveLead(context.Background(), projectActor(model.WorkspaceRoleMember), "missing")
+	assertAppErrCode(t, err, errs.CodeNotFound)
+}
+
 // --- DeleteProject ---
 
 func TestDeleteProject_ForbiddenForNonManager(t *testing.T) {

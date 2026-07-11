@@ -71,9 +71,12 @@ func (s *IssueService) ListIssues(ctx context.Context, workspaceID string, filte
 		res.NextCursor = &model.Cursor{Value: sortValue(last, page.Sort), ID: last.ID}
 	}
 
-	// Обогащаем assignees батчем (WHERE issue_id = ANY(...)) только для строк
-	// возвращаемой страницы — без N+1.
+	// Обогащаем assignees/labels батчем (WHERE issue_id = ANY(...)) только для
+	// строк возвращаемой страницы — без N+1.
 	if err := s.enrichListAssignees(ctx, res.Issues); err != nil {
+		return IssueListResult{}, err
+	}
+	if err := s.enrichListLabels(ctx, res.Issues); err != nil {
 		return IssueListResult{}, err
 	}
 	return res, nil

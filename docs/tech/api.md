@@ -101,6 +101,7 @@ LIMIT 50
 | GET | `/api/workspaces/{workspaceID}/issues/:issueID` | Детали задачи (UUID или identifier) | Member |
 | PATCH | `/api/workspaces/{workspaceID}/issues/:issueID` | Обновить задачу (partial) | Team member |
 | DELETE | `/api/workspaces/{workspaceID}/issues/:issueID` | Удалить задачу | Team member |
+| DELETE | `/api/workspaces/{workspaceID}/issues/:issueID/project` | Отвязать задачу от проекта (`project_id → null`) | Team member |
 | POST | `/api/workspaces/{workspaceID}/issues/:issueID/assignees` | Добавить участника (`{user_id}`) | Team member |
 | DELETE | `/api/workspaces/{workspaceID}/issues/:issueID/assignees/:userID` | Убрать участника | Team member |
 | PUT | `/api/workspaces/{workspaceID}/issues/:issueID/assignees/:userID/primary` | Назначить ответственным (только из участников) | Team member |
@@ -123,6 +124,26 @@ LIMIT 50
 - Семантика `assignees` в PATCH: отсутствие поля или `null` = «не трогать участников» (partial update); присланный массив = replace всего набора, пустой массив `[]` = снять всех.
 
 Форма поля `assignees` в ответе issue совпадает с примером выше.
+
+**Labels:**
+
+- В теле POST/PATCH `/issues` (и `/issues/:issueID`) можно передать массив `label_ids` (replace-семантика всего набора, аналог `assignees`):
+
+```json
+{
+  "label_ids": ["...", "..."]
+}
+```
+
+- Точечных sub-resource endpoints для меток нет — привязка/снятие только через `label_ids`.
+- Видимость: допустимы только workspace-level метки (`team_id = null`) и метки команды задачи; чужая team-метка → 400.
+- Семантика `label_ids`: отсутствие поля или `null` = «не трогать метки» (partial update); присланный массив = replace всего набора, пустой массив `[]` = снять все.
+- В ответе issue метки отдаются массивом `labels` (`{ id, name, color }`).
+
+**Привязка к проекту (`project_id`):**
+
+- Установка/смена проекта — через PATCH `/issues/:issueID` (`{"project_id": "..."}`); отсутствие поля или `null` = «не трогать». При установке команда задачи автоматически добавляется в проект.
+- Очистка (`project_id → null`) — через отдельный `DELETE /issues/:issueID/project` (идемпотентно, возвращает `200` с обновлённой задачей). PATCH не умеет очищать nullable-FK: пустая строка отклоняется валидацией, а `null`/отсутствие трактуются как «не трогать».
 
 **Фильтры GET /api/workspaces/{workspaceID}/issues:**
 
@@ -153,8 +174,11 @@ LIMIT 50
 | GET | `/api/workspaces/{workspaceID}/projects/:projectID` | Детали проекта | Member |
 | PATCH | `/api/workspaces/{workspaceID}/projects/:projectID` | Обновить проект | Member |
 | DELETE | `/api/workspaces/{workspaceID}/projects/:projectID` | Удалить проект | Owner/Admin |
+| DELETE | `/api/workspaces/{workspaceID}/projects/:projectID/lead` | Снять ведущего проекта (`lead_id → null`) | Member |
 
 Проект охватывает 1+ команд через junction `project_teams`. В ответе проекта команды отдаются массивом `team_ids`.
+
+Установка/смена ведущего (`lead_id`) — через PATCH `/projects/:projectID`; отсутствие поля или `null` = «не трогать». Очистка (`lead_id → null`) — через отдельный `DELETE /projects/:projectID/lead` (идемпотентно, возвращает `200` с обновлённым проектом), т.к. PATCH не умеет очищать nullable-FK.
 
 Семантика `team_ids` в POST/PATCH (replace-семантика, аналог `assignees` у issue):
 

@@ -129,6 +129,14 @@ type IssueRepository interface {
 	RemoveAssignee(ctx context.Context, issueID, userID string) error
 	ClearPrimary(ctx context.Context, issueID string) error
 	SetPrimary(ctx context.Context, issueID, userID string) error
+
+	// Labels (tracker.issue_label). Зеркало assignee-методов: гранулярные операции
+	// работают и на пуле, и на транзакции; replace набора оркеструется сервисом
+	// через WithTx. Read-методы фильтруют deleted_at IS NULL (обе стороны JOIN).
+	ListLabels(ctx context.Context, issueID string) ([]model.Label, error)
+	ListLabelsByIssues(ctx context.Context, issueIDs []string) (map[string][]model.Label, error)
+	AddIssueLabel(ctx context.Context, issueID, labelID string) error
+	RemoveIssueLabel(ctx context.Context, issueID, labelID string) error
 }
 
 // ProjectRepository — доступ к tracker.project и tracker.project_team.

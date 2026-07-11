@@ -30,6 +30,8 @@ func New(services *service.Services) *chi.Mux {
 		mux.Post("/assignees", h.addAssignee)
 		mux.Delete("/assignees/{userID}", h.removeAssignee)
 		mux.Put("/assignees/{userID}/primary", h.setPrimary)
+
+		mux.Delete("/project", h.removeProject)
 	})
 
 	return mux
@@ -38,7 +40,7 @@ func New(services *service.Services) *chi.Mux {
 // create godoc
 //
 //	@Summary		Create an issue
-//	@Description	Создаёт задачу и выдаёт identifier (участник команды). status_id по умолчанию — дефолтный статус backlog.
+//	@Description	Создаёт задачу и выдаёт identifier (участник команды). status_id по умолчанию — дефолтный статус backlog. label_ids — набор меток (workspace-level или команды задачи), replace-семантика.
 //	@Tags			issue
 //	@Accept			json
 //	@Produce		json
@@ -97,7 +99,7 @@ func (h *Handler) get(w http.ResponseWriter, r *http.Request) {
 // update godoc
 //
 //	@Summary		Update an issue
-//	@Description	Частично обновляет задачу (участник команды).
+//	@Description	Частично обновляет задачу (участник команды). assignees/label_ids — replace-семантика набора (nil = не трогать, [] = снять все).
 //	@Tags			issue
 //	@Accept			json
 //	@Produce		json
@@ -282,6 +284,30 @@ func (h *Handler) setPrimary(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	issue, err := h.services.Issue.SetPrimary(r.Context(), actor, ref, userID)
+	if err != nil {
+		httpx.RespondError(w, err)
+		return
+	}
+	httpx.RespondJSON(w, http.StatusOK, toIssueResponse(issue))
+}
+
+// removeProject godoc
+//
+//	@Summary		Detach the issue from its project
+//	@Description	Отвязывает задачу от проекта (project_id → null, участник команды). Идемпотентно. PATCH задаёт проект, этот эндпоинт — очищает.
+//	@Tags			issue
+//	@Produce		json
+//	@Param			workspaceID	path		string	true	"Workspace ID"
+//	@Param			issueID		path		string	true	"Issue UUID or identifier"
+//	@Success		200			{object}	issueResponse
+//	@Failure		401			{object}	httpx.ErrorResponse
+//	@Failure		403			{object}	httpx.ErrorResponse
+//	@Failure		404			{object}	httpx.ErrorResponse
+//	@Router			/api/workspaces/{workspaceID}/issues/{issueID}/project [delete]
+func (h *Handler) removeProject(w http.ResponseWriter, r *http.Request) {
+	actor := middleware.MemberFromContext(r.Context())
+	ref := httpx.PathParam(r, "issueID")
+	issue, err := h.services.Issue.RemoveProject(r.Context(), actor, ref)
 	if err != nil {
 		httpx.RespondError(w, err)
 		return

@@ -26,6 +26,8 @@ func New(services *service.Services) *chi.Mux {
 		mux.Get("/", h.get)
 		mux.Patch("/", h.update)
 		mux.Delete("/", h.delete)
+
+		mux.Delete("/lead", h.removeLead)
 	})
 
 	return mux
@@ -180,4 +182,31 @@ func (h *Handler) delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	httpx.RespondJSON(w, http.StatusNoContent, nil)
+}
+
+// removeLead godoc
+//
+//	@Summary		Remove the project lead
+//	@Description	Снимает ведущего проекта (lead_id → null, участник workspace). Идемпотентно. PATCH задаёт лида, этот эндпоинт — очищает.
+//	@Tags			project
+//	@Produce		json
+//	@Param			workspaceID	path		string	true	"Workspace ID"
+//	@Param			projectID	path		string	true	"Project ID"
+//	@Success		200			{object}	projectResponse
+//	@Failure		401			{object}	httpx.ErrorResponse
+//	@Failure		404			{object}	httpx.ErrorResponse
+//	@Router			/api/workspaces/{workspaceID}/projects/{projectID}/lead [delete]
+func (h *Handler) removeLead(w http.ResponseWriter, r *http.Request) {
+	actor := middleware.MemberFromContext(r.Context())
+	projectID, err := httpx.PathUUID(r, "projectID")
+	if err != nil {
+		httpx.RespondError(w, err)
+		return
+	}
+	project, err := h.services.Project.RemoveLead(r.Context(), actor, projectID)
+	if err != nil {
+		httpx.RespondError(w, err)
+		return
+	}
+	httpx.RespondJSON(w, http.StatusOK, toProjectResponse(project))
 }

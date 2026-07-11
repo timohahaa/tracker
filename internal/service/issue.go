@@ -21,6 +21,8 @@ type IssueService struct {
 
 // CreateIssueParams — входные данные создания задачи (граница service).
 // StatusID/ProjectID/DueDate/Description опциональны (nil = не задано).
+// LabelIDs — replace-семантика набора меток (как assignees в PATCH): nil = без
+// меток, непустой слайс = привязать набор.
 type CreateIssueParams struct {
 	TeamID      string
 	Title       string
@@ -29,11 +31,12 @@ type CreateIssueParams struct {
 	ProjectID   *string
 	Priority    model.Priority
 	DueDate     *time.Time
+	LabelIDs    *[]string
 }
 
 // UpdateIssueParams — частичное обновление задачи. Nil-поле означает «не менять».
-// Assignees — replace-семантика всего набора: nil = «не трогать ассайни»,
-// непустой/пустой слайс = заменить набор целиком (пустой = снять всех).
+// Assignees/LabelIDs — replace-семантика всего набора: nil = «не трогать»,
+// непустой/пустой слайс = заменить набор целиком (пустой = снять все).
 type UpdateIssueParams struct {
 	Title       *string
 	Description *string
@@ -42,6 +45,7 @@ type UpdateIssueParams struct {
 	Priority    *model.Priority
 	DueDate     *time.Time
 	Assignees   *[]AssigneeInput
+	LabelIDs    *[]string
 }
 
 // AssigneeInput — участник задачи во входных данных (граница service).
@@ -71,6 +75,15 @@ func (s *IssueService) CreateIssue(ctx context.Context, actor model.WorkspaceMem
 
 	if err := s.validateProject(ctx, actor.WorkspaceID, params.ProjectID); err != nil {
 		return model.IssueDetails{}, err
+	}
+
+	var labelSet []string
+	if params.LabelIDs != nil {
+		var lerr error
+		labelSet, lerr = s.validateLabelSet(ctx, actor.WorkspaceID, team.ID, *params.LabelIDs)
+		if lerr != nil {
+			return model.IssueDetails{}, lerr
+		}
 	}
 
 	priority := params.Priority
@@ -106,19 +119,28 @@ func (s *IssueService) CreateIssue(ctx context.Context, actor model.WorkspaceMem
 		// «Add team to project» (data-model): привязка задачи к проекту
 		// автоматически добавляет её команду в project_teams, если её там нет.
 		if params.ProjectID != nil {
-			_, err = tx.Project().AddTeam(ctx, *params.ProjectID, team.ID)
+			if _, aerr := tx.Project().AddTeam(ctx, *params.ProjectID, team.ID); aerr != nil {
+				return aerr
+			}
 		}
-		return err
+		if params.LabelIDs != nil {
+			return replaceIssueLabels(ctx, tx, created.ID, labelSet)
+		}
+		return nil
 	})
 	if err != nil {
 		return model.IssueDetails{}, err
 	}
 
-	return model.IssueDetails{
+	out := model.IssueDetails{
 		Issue:      created,
 		TeamKey:    team.Key,
 		Identifier: team.Key + "-" + strconv.Itoa(number),
-	}, nil
+	}
+	if err := s.enrichLabels(ctx, &out); err != nil {
+		return model.IssueDetails{}, err
+	}
+	return out, nil
 }
 
 // GetIssue возвращает задачу workspace по ссылке — UUID или identifier (ENG-123)
@@ -130,6 +152,9 @@ func (s *IssueService) GetIssue(ctx context.Context, workspaceID, ref string) (m
 		return model.IssueDetails{}, err
 	}
 	if err := s.enrichAssignees(ctx, &details); err != nil {
+		return model.IssueDetails{}, err
+	}
+	if err := s.enrichLabels(ctx, &details); err != nil {
 		return model.IssueDetails{}, err
 	}
 	return details, nil
@@ -211,9 +236,9 @@ func (s *IssueService) UpdateIssue(ctx context.Context, actor model.WorkspaceMem
 	// достаточно проверки на nil — симметрично CreateIssue.
 	setProject := params.ProjectID != nil
 
-	// Ни ассайни, ни привязку к проекту не трогаем — простой путь (одиночный
-	// UPDATE без транзакции).
-	if params.Assignees == nil && !setProject {
+	// Ни ассайни, ни метки, ни привязку к проекту не трогаем — простой путь
+	// (одиночный UPDATE без транзакции).
+	if params.Assignees == nil && params.LabelIDs == nil && !setProject {
 		updated, err := s.repos.Issue().Update(ctx, issue)
 		if err != nil {
 			return model.IssueDetails{}, err
@@ -226,17 +251,28 @@ func (s *IssueService) UpdateIssue(ctx context.Context, actor model.WorkspaceMem
 		if err := s.enrichAssignees(ctx, &out); err != nil {
 			return model.IssueDetails{}, err
 		}
+		if err := s.enrichLabels(ctx, &out); err != nil {
+			return model.IssueDetails{}, err
+		}
 		return out, nil
 	}
 
-	// Replace-семантика набора ассайни (если задан) + авто-добавление команды в
-	// проект — всё в одной транзакции с обновлением полей задачи.
+	// Replace-семантика наборов ассайни/меток (если заданы) + авто-добавление
+	// команды в проект — всё в одной транзакции с обновлением полей задачи.
 	var set []AssigneeInput
 	if params.Assignees != nil {
 		var verr error
 		set, verr = s.validateAssigneeSet(ctx, issue.TeamID, *params.Assignees)
 		if verr != nil {
 			return model.IssueDetails{}, verr
+		}
+	}
+	var labelSet []string
+	if params.LabelIDs != nil {
+		var lerr error
+		labelSet, lerr = s.validateLabelSet(ctx, actor.WorkspaceID, issue.TeamID, *params.LabelIDs)
+		if lerr != nil {
+			return model.IssueDetails{}, lerr
 		}
 	}
 
@@ -253,7 +289,12 @@ func (s *IssueService) UpdateIssue(ctx context.Context, actor model.WorkspaceMem
 			}
 		}
 		if params.Assignees != nil {
-			return replaceAssignees(ctx, tx, issue.ID, set)
+			if aerr := replaceAssignees(ctx, tx, issue.ID, set); aerr != nil {
+				return aerr
+			}
+		}
+		if params.LabelIDs != nil {
+			return replaceIssueLabels(ctx, tx, issue.ID, labelSet)
 		}
 		return nil
 	})
@@ -269,6 +310,9 @@ func (s *IssueService) UpdateIssue(ctx context.Context, actor model.WorkspaceMem
 	if err := s.enrichAssignees(ctx, &out); err != nil {
 		return model.IssueDetails{}, err
 	}
+	if err := s.enrichLabels(ctx, &out); err != nil {
+		return model.IssueDetails{}, err
+	}
 	return out, nil
 }
 
@@ -282,6 +326,41 @@ func (s *IssueService) DeleteIssue(ctx context.Context, actor model.WorkspaceMem
 		return err
 	}
 	return s.repos.Issue().Delete(ctx, details.ID)
+}
+
+// RemoveProject отвязывает задачу от проекта (project_id → NULL). Доступно
+// участнику команды задачи. Идемпотентно: отвязка задачи без проекта — не
+// ошибка. В отличие от установки проекта, здесь нет побочки «add team to
+// project». PATCH выражает только установку/«не трогать»; очистку делает эта
+// отдельная ручка.
+func (s *IssueService) RemoveProject(ctx context.Context, actor model.WorkspaceMember, ref string) (model.IssueDetails, error) {
+	details, err := s.GetIssue(ctx, actor.WorkspaceID, ref)
+	if err != nil {
+		return model.IssueDetails{}, err
+	}
+	if err := s.requireTeamMember(ctx, details.TeamID, actor.UserID); err != nil {
+		return model.IssueDetails{}, err
+	}
+
+	issue := details.Issue
+	issue.ProjectID = nil
+	updated, err := s.repos.Issue().Update(ctx, issue)
+	if err != nil {
+		return model.IssueDetails{}, err
+	}
+
+	out := model.IssueDetails{
+		Issue:      updated,
+		TeamKey:    details.TeamKey,
+		Identifier: details.Identifier,
+	}
+	if err := s.enrichAssignees(ctx, &out); err != nil {
+		return model.IssueDetails{}, err
+	}
+	if err := s.enrichLabels(ctx, &out); err != nil {
+		return model.IssueDetails{}, err
+	}
+	return out, nil
 }
 
 // resolveStatusID возвращает status_id для новой задачи: заданный (после

@@ -212,6 +212,81 @@ func TestProjectMalformedID(t *testing.T) {
 	_ = resp.Body.Close()
 }
 
+// TestProjectRemoveLead проверяет отдельную ручку очистки lead_id: DELETE
+// .../lead снимает ведущего (PATCH умеет только задавать), идемпотентно, с
+// авторизацией.
+func TestProjectRemoveLead(t *testing.T) {
+	t.Parallel()
+	srv, cookieName := setupServer(t)
+	db := dbtest.Open(t)
+	client := srv.Client()
+
+	wsID := dbtest.SeedWorkspace(t, db)
+	cleanupProjects(t, db, wsID)
+	owner := seedMember(t, db, cookieName, wsID, model.WorkspaceRoleMember)
+
+	projectsURL := srv.URL + "/api/workspaces/" + wsID + "/projects"
+
+	// создать проект с ведущим (owner — участник workspace) → 201
+	resp := doJSON(t, client, http.MethodPost, projectsURL, map[string]any{
+		"name":    "Roadmap",
+		"lead_id": owner.userID,
+	}, owner.cookie)
+	if resp.StatusCode != http.StatusCreated {
+		_ = resp.Body.Close()
+		t.Fatalf("create project: status = %d, want 201", resp.StatusCode)
+	}
+	var created struct {
+		ID     string  `json:"id"`
+		LeadID *string `json:"lead_id"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&created); err != nil {
+		t.Fatalf("decode project: %v", err)
+	}
+	_ = resp.Body.Close()
+	if created.LeadID == nil || *created.LeadID != owner.userID {
+		t.Fatalf("created lead_id = %v, want %s", created.LeadID, owner.userID)
+	}
+	leadURL := projectsURL + "/" + created.ID + "/lead"
+
+	// без cookie → 401
+	resp = doJSON(t, client, http.MethodDelete, leadURL, nil)
+	if resp.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("no cookie: status = %d, want 401", resp.StatusCode)
+	}
+	_ = resp.Body.Close()
+
+	// удалить ведущего → 200, lead_id отсутствует
+	resp = doJSON(t, client, http.MethodDelete, leadURL, nil, owner.cookie)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("remove lead: status = %d, want 200", resp.StatusCode)
+	}
+	var cleared struct {
+		LeadID *string `json:"lead_id"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&cleared); err != nil {
+		t.Fatalf("decode cleared: %v", err)
+	}
+	_ = resp.Body.Close()
+	if cleared.LeadID != nil {
+		t.Fatalf("lead_id = %v, want nil", *cleared.LeadID)
+	}
+
+	// повторный DELETE идемпотентен → 200
+	resp = doJSON(t, client, http.MethodDelete, leadURL, nil, owner.cookie)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("idempotent remove lead: status = %d, want 200", resp.StatusCode)
+	}
+	_ = resp.Body.Close()
+
+	// несуществующий проект → 404
+	resp = doJSON(t, client, http.MethodDelete, projectsURL+"/"+uuid.NewString()+"/lead", nil, owner.cookie)
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("missing project: status = %d, want 404", resp.StatusCode)
+	}
+	_ = resp.Body.Close()
+}
+
 func TestProjectDeleteAuthorization(t *testing.T) {
 	t.Parallel()
 	srv, cookieName := setupServer(t)

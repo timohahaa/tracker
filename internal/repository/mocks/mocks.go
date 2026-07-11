@@ -911,6 +911,20 @@ func (mr *MockIssueRepositoryMockRecorder) AddAssignee(ctx, a any) *gomock.Call 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddAssignee", reflect.TypeOf((*MockIssueRepository)(nil).AddAssignee), ctx, a)
 }
 
+// AddIssueLabel mocks base method.
+func (m *MockIssueRepository) AddIssueLabel(ctx context.Context, issueID, labelID string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AddIssueLabel", ctx, issueID, labelID)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// AddIssueLabel indicates an expected call of AddIssueLabel.
+func (mr *MockIssueRepositoryMockRecorder) AddIssueLabel(ctx, issueID, labelID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddIssueLabel", reflect.TypeOf((*MockIssueRepository)(nil).AddIssueLabel), ctx, issueID, labelID)
+}
+
 // ClearPrimary mocks base method.
 func (m *MockIssueRepository) ClearPrimary(ctx context.Context, issueID string) error {
 	m.ctrl.T.Helper()
@@ -1059,6 +1073,36 @@ func (mr *MockIssueRepositoryMockRecorder) ListAssigneesByIssues(ctx, issueIDs a
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAssigneesByIssues", reflect.TypeOf((*MockIssueRepository)(nil).ListAssigneesByIssues), ctx, issueIDs)
 }
 
+// ListLabels mocks base method.
+func (m *MockIssueRepository) ListLabels(ctx context.Context, issueID string) ([]model.Label, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListLabels", ctx, issueID)
+	ret0, _ := ret[0].([]model.Label)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListLabels indicates an expected call of ListLabels.
+func (mr *MockIssueRepositoryMockRecorder) ListLabels(ctx, issueID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListLabels", reflect.TypeOf((*MockIssueRepository)(nil).ListLabels), ctx, issueID)
+}
+
+// ListLabelsByIssues mocks base method.
+func (m *MockIssueRepository) ListLabelsByIssues(ctx context.Context, issueIDs []string) (map[string][]model.Label, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListLabelsByIssues", ctx, issueIDs)
+	ret0, _ := ret[0].(map[string][]model.Label)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListLabelsByIssues indicates an expected call of ListLabelsByIssues.
+func (mr *MockIssueRepositoryMockRecorder) ListLabelsByIssues(ctx, issueIDs any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListLabelsByIssues", reflect.TypeOf((*MockIssueRepository)(nil).ListLabelsByIssues), ctx, issueIDs)
+}
+
 // ProjectInWorkspace mocks base method.
 func (m *MockIssueRepository) ProjectInWorkspace(ctx context.Context, workspaceID, projectID string) (bool, error) {
 	m.ctrl.T.Helper()
@@ -1086,6 +1130,20 @@ func (m *MockIssueRepository) RemoveAssignee(ctx context.Context, issueID, userI
 func (mr *MockIssueRepositoryMockRecorder) RemoveAssignee(ctx, issueID, userID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveAssignee", reflect.TypeOf((*MockIssueRepository)(nil).RemoveAssignee), ctx, issueID, userID)
+}
+
+// RemoveIssueLabel mocks base method.
+func (m *MockIssueRepository) RemoveIssueLabel(ctx context.Context, issueID, labelID string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RemoveIssueLabel", ctx, issueID, labelID)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// RemoveIssueLabel indicates an expected call of RemoveIssueLabel.
+func (mr *MockIssueRepositoryMockRecorder) RemoveIssueLabel(ctx, issueID, labelID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveIssueLabel", reflect.TypeOf((*MockIssueRepository)(nil).RemoveIssueLabel), ctx, issueID, labelID)
 }
 
 // SetPrimary mocks base method.
