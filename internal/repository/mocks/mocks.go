@@ -400,6 +400,35 @@ func (m *MockTokenRepository) EXPECT() *MockTokenRepositoryMockRecorder {
 	return m.recorder
 }
 
+// Create mocks base method.
+func (m *MockTokenRepository) Create(ctx context.Context, t model.APIToken) (model.APIToken, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Create", ctx, t)
+	ret0, _ := ret[0].(model.APIToken)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Create indicates an expected call of Create.
+func (mr *MockTokenRepositoryMockRecorder) Create(ctx, t any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Create", reflect.TypeOf((*MockTokenRepository)(nil).Create), ctx, t)
+}
+
+// Delete mocks base method.
+func (m *MockTokenRepository) Delete(ctx context.Context, id string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Delete", ctx, id)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Delete indicates an expected call of Delete.
+func (mr *MockTokenRepositoryMockRecorder) Delete(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Delete", reflect.TypeOf((*MockTokenRepository)(nil).Delete), ctx, id)
+}
+
 // GetByID mocks base method.
 func (m *MockTokenRepository) GetByID(ctx context.Context, id string) (model.APIToken, error) {
 	m.ctrl.T.Helper()
@@ -413,6 +442,21 @@ func (m *MockTokenRepository) GetByID(ctx context.Context, id string) (model.API
 func (mr *MockTokenRepositoryMockRecorder) GetByID(ctx, id any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetByID", reflect.TypeOf((*MockTokenRepository)(nil).GetByID), ctx, id)
+}
+
+// ListByUser mocks base method.
+func (m *MockTokenRepository) ListByUser(ctx context.Context, workspaceID, userID string) ([]model.APIToken, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListByUser", ctx, workspaceID, userID)
+	ret0, _ := ret[0].([]model.APIToken)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListByUser indicates an expected call of ListByUser.
+func (mr *MockTokenRepositoryMockRecorder) ListByUser(ctx, workspaceID, userID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListByUser", reflect.TypeOf((*MockTokenRepository)(nil).ListByUser), ctx, workspaceID, userID)
 }
 
 // UpdateLastUsed mocks base method.

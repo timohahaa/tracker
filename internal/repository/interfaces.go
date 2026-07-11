@@ -53,8 +53,11 @@ type SessionRepository interface {
 
 // TokenRepository — доступ к core.api_token.
 type TokenRepository interface {
+	Create(ctx context.Context, t model.APIToken) (model.APIToken, error)
+	ListByUser(ctx context.Context, workspaceID, userID string) ([]model.APIToken, error)
 	GetByID(ctx context.Context, id string) (model.APIToken, error)
 	UpdateLastUsed(ctx context.Context, id string) error
+	Delete(ctx context.Context, id string) error
 }
 
 // WorkspaceRepository — доступ к org.workspace и org.workspace_member.
