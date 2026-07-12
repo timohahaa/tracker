@@ -272,3 +272,45 @@ func SeedAPIToken(t *testing.T, db *sqlx.DB, userID, workspaceID string) string 
 	t.Cleanup(func() { _, _ = db.Exec(`DELETE FROM core.api_token WHERE id = $1`, id) })
 	return id
 }
+
+// SeedIntegration вставляет integration.connection и возвращает её id.
+// settings/credentials — jsonb (передаются с ::jsonb-кастом); nil → '{}'.
+func SeedIntegration(t *testing.T, db *sqlx.DB, workspaceID, provider string, settings, credentials []byte) string {
+	t.Helper()
+	if len(settings) == 0 {
+		settings = []byte(`{}`)
+	}
+	if len(credentials) == 0 {
+		credentials = []byte(`{}`)
+	}
+	var id string
+	err := db.Get(&id, `
+		INSERT INTO integration.connection (workspace_id, provider, settings, credentials)
+		VALUES ($1, $2, $3::jsonb, $4::jsonb) RETURNING id`,
+		workspaceID, provider, string(settings), string(credentials))
+	if err != nil {
+		t.Fatalf("seed integration: %s", err)
+	}
+	t.Cleanup(func() { _, _ = db.Exec(`DELETE FROM integration.connection WHERE id = $1`, id) })
+	return id
+}
+
+// SeedAttachment вставляет tracker.attachment (source_type gitlab_mr) и
+// возвращает её id. integrationID nil → attachment без интеграции. metadata —
+// jsonb (nil → '{}').
+func SeedAttachment(t *testing.T, db *sqlx.DB, issueID string, integrationID *string, url, title string, metadata []byte) string {
+	t.Helper()
+	if len(metadata) == 0 {
+		metadata = []byte(`{}`)
+	}
+	var id string
+	err := db.Get(&id, `
+		INSERT INTO tracker.attachment (issue_id, integration_id, source_type, url, title, metadata)
+		VALUES ($1, $2, 'gitlab_mr', $3, $4, $5::jsonb) RETURNING id`,
+		issueID, integrationID, url, title, string(metadata))
+	if err != nil {
+		t.Fatalf("seed attachment: %s", err)
+	}
+	t.Cleanup(func() { _, _ = db.Exec(`DELETE FROM tracker.attachment WHERE id = $1`, id) })
+	return id
+}

@@ -1,8 +1,6 @@
 package webhook
 
 import (
-	"net/http"
-
 	"github.com/go-chi/chi/v5"
 
 	"github.com/timohahaa/tracker/internal/service"
@@ -22,5 +20,3 @@ func New(services *service.Services) *chi.Mux {
 
 	return mux
 }
-
-func (h *Handler) gitlab(w http.ResponseWriter, r *http.Request) {}

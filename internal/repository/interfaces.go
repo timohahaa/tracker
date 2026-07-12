@@ -7,7 +7,7 @@ import (
 	"github.com/timohahaa/tracker/internal/model"
 )
 
-//go:generate go tool mockgen -destination=mocks/mocks.go -package=repomocks github.com/timohahaa/tracker/internal/repository Store,UserRepository,SessionRepository,TokenRepository,WorkspaceRepository,TeamRepository,StatusRepository,IssueRepository,ProjectRepository,LabelRepository
+//go:generate go tool mockgen -destination=mocks/mocks.go -package=repomocks github.com/timohahaa/tracker/internal/repository Store,UserRepository,SessionRepository,TokenRepository,WorkspaceRepository,TeamRepository,StatusRepository,IssueRepository,ProjectRepository,LabelRepository,IntegrationRepository,AttachmentRepository
 
 // Интерфейсы репозиториев — шов между service и repository. Конкретные *XRepo
 // реализуют их структурно; сервисы работают через интерфейсы, что позволяет
@@ -28,8 +28,8 @@ type Store interface {
 	Issue() IssueRepository
 	Project() ProjectRepository
 	Label() LabelRepository
-	Integration() *IntegrationRepo
-	Attachment() *AttachmentRepo
+	Integration() IntegrationRepository
+	Attachment() AttachmentRepository
 	Invite() *InviteRepo
 
 	// WithTx выполняет fn в одной транзакции; переданный Store к ней привязан.
@@ -181,16 +181,37 @@ type LabelRepository interface {
 	RepointIssueLabels(ctx context.Context, fromLabelIDs []string, toLabelID string) error
 }
 
+// IntegrationRepository — доступ к integration.connection. Все read-методы
+// фильтруют deleted_at IS NULL. Upsert восстанавливает soft-deleted интеграцию
+// (переподключение) без дубля по (workspace_id, provider). GetByID не скоупится
+// на workspace — нужен webhook-пути, где workspace резолвится из интеграции.
+type IntegrationRepository interface {
+	Upsert(ctx context.Context, i model.Integration) (model.Integration, error)
+	GetByWorkspaceProvider(ctx context.Context, workspaceID string, provider model.Provider) (model.Integration, error)
+	GetByID(ctx context.Context, id string) (model.Integration, error)
+	Delete(ctx context.Context, id string) error
+}
+
+// AttachmentRepository — доступ к tracker.attachment. Upsert идемпотентен по
+// (url, issue_id) и восстанавливает soft-deleted (повторная доставка webhook).
+// Read-методы фильтруют deleted_at IS NULL.
+type AttachmentRepository interface {
+	Upsert(ctx context.Context, a model.Attachment) (model.Attachment, error)
+	ListByIssue(ctx context.Context, issueID string) ([]model.Attachment, error)
+}
+
 // Компайл-тайм проверки соответствия конкретных репозиториев интерфейсам.
 var (
-	_ UserRepository      = (*UserRepo)(nil)
-	_ SessionRepository   = (*SessionRepo)(nil)
-	_ TokenRepository     = (*TokenRepo)(nil)
-	_ WorkspaceRepository = (*WorkspaceRepo)(nil)
-	_ TeamRepository      = (*TeamRepo)(nil)
-	_ StatusRepository    = (*StatusRepo)(nil)
-	_ IssueRepository     = (*IssueRepo)(nil)
-	_ ProjectRepository   = (*ProjectRepo)(nil)
-	_ LabelRepository     = (*LabelRepo)(nil)
-	_ Store               = (*Repositories)(nil)
+	_ UserRepository        = (*UserRepo)(nil)
+	_ SessionRepository     = (*SessionRepo)(nil)
+	_ TokenRepository       = (*TokenRepo)(nil)
+	_ WorkspaceRepository   = (*WorkspaceRepo)(nil)
+	_ TeamRepository        = (*TeamRepo)(nil)
+	_ StatusRepository      = (*StatusRepo)(nil)
+	_ IssueRepository       = (*IssueRepo)(nil)
+	_ ProjectRepository     = (*ProjectRepo)(nil)
+	_ LabelRepository       = (*LabelRepo)(nil)
+	_ IntegrationRepository = (*IntegrationRepo)(nil)
+	_ AttachmentRepository  = (*AttachmentRepo)(nil)
+	_ Store                 = (*Repositories)(nil)
 )

@@ -29,8 +29,8 @@ type Repositories struct {
 	issue       IssueRepository
 	project     ProjectRepository
 	label       LabelRepository
-	integration *IntegrationRepo
-	attachment  *AttachmentRepo
+	integration IntegrationRepository
+	attachment  AttachmentRepository
 	invite      *InviteRepo
 }
 
@@ -63,18 +63,18 @@ func newRepos(ext Ext) *Repositories {
 // Аксессоры репозиториев — реализация Store. Для репозиториев с методами
 // возвращают интерфейс (мокается), для пока пустых заглушек — конкретный тип
 // (заменяется на интерфейс, когда у репозитория появятся методы).
-func (r *Repositories) User() UserRepository           { return r.user }
-func (r *Repositories) Session() SessionRepository     { return r.session }
-func (r *Repositories) Token() TokenRepository         { return r.token }
-func (r *Repositories) Workspace() WorkspaceRepository { return r.workspace }
-func (r *Repositories) Team() TeamRepository           { return r.team }
-func (r *Repositories) Status() StatusRepository       { return r.status }
-func (r *Repositories) Issue() IssueRepository         { return r.issue }
-func (r *Repositories) Project() ProjectRepository     { return r.project }
-func (r *Repositories) Label() LabelRepository         { return r.label }
-func (r *Repositories) Integration() *IntegrationRepo  { return r.integration }
-func (r *Repositories) Attachment() *AttachmentRepo    { return r.attachment }
-func (r *Repositories) Invite() *InviteRepo            { return r.invite }
+func (r *Repositories) User() UserRepository               { return r.user }
+func (r *Repositories) Session() SessionRepository         { return r.session }
+func (r *Repositories) Token() TokenRepository             { return r.token }
+func (r *Repositories) Workspace() WorkspaceRepository     { return r.workspace }
+func (r *Repositories) Team() TeamRepository               { return r.team }
+func (r *Repositories) Status() StatusRepository           { return r.status }
+func (r *Repositories) Issue() IssueRepository             { return r.issue }
+func (r *Repositories) Project() ProjectRepository         { return r.project }
+func (r *Repositories) Label() LabelRepository             { return r.label }
+func (r *Repositories) Integration() IntegrationRepository { return r.integration }
+func (r *Repositories) Attachment() AttachmentRepository   { return r.attachment }
+func (r *Repositories) Invite() *InviteRepo                { return r.invite }
 
 // WithTx выполняет fn в рамках одной транзакции. Переданный Store привязан к
 // транзакции: все запросы через него участвуют в одном BEGIN/COMMIT. При ошибке

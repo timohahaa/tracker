@@ -27,6 +27,6 @@ func New(repos repository.Store, cfg config.Config) *Services {
 		Project:   &ProjectService{repos: repos},
 		Label:     &LabelService{repos: repos},
 		Token:     &TokenService{repos: repos},
-		GitLab:    &GitLabService{repos: repos},
+		GitLab:    &GitLabService{repos: repos, gitlab: newGitLabClient()},
 	}
 }
