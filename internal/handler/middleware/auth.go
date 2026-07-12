@@ -39,18 +39,24 @@ func (m *Middleware) SessionAuth(next http.Handler) http.Handler {
 }
 
 // TokenAuth аутентифицирует по Authorization: Bearer <token> (API/MCP): резолвит
-// токен в пользователя и обновляет last_used_at. Нет/невалиден → 401.
+// токен в пользователя, его workspace (скоуп токена) и membership, обновляет
+// last_used_at. Кладёт всё в контекст теми же хелперами, что и web-цепочка
+// (SessionAuth + LoadWorkspace), чтобы downstream (MCP tools) читали актора
+// одинаково. Нет/невалиден → 401.
 func (m *Middleware) TokenAuth(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		token := bearerToken(r)
 
-		user, err := m.services.Auth.AuthByToken(r.Context(), token)
+		user, ws, member, err := m.services.Auth.AuthByTokenWithWorkspace(r.Context(), token)
 		if err != nil {
 			httpx.RespondError(w, err)
 			return
 		}
 
-		next.ServeHTTP(w, r.WithContext(WithUser(r.Context(), user)))
+		ctx := WithUser(r.Context(), user)
+		ctx = WithWorkspace(ctx, ws)
+		ctx = WithMember(ctx, member)
+		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
 

@@ -171,6 +171,56 @@ func (s *AuthService) AuthByToken(ctx context.Context, tokenID string) (model.Us
 	return user, nil
 }
 
+// AuthByTokenWithWorkspace резолвит API-токен в пользователя вместе с workspace
+// токена и membership пользователя в нём. Нужен MCP-транспорту: tools работают
+// от лица WorkspaceMember в token.WorkspaceID, поэтому актора надо собрать сразу
+// на границе auth (как LoadWorkspace для web). В отличие от AuthBySession/
+// LoadWorkspace, отсутствие членства здесь — это невалидный токен (→
+// Unauthorized), а не 404: токен скоупнут на workspace, и без членства он
+// нерабочий. AuthByToken оставлен как есть (сессионный REST его не использует).
+func (s *AuthService) AuthByTokenWithWorkspace(ctx context.Context, tokenID string) (model.User, model.Workspace, model.WorkspaceMember, error) {
+	if tokenID == "" {
+		return model.User{}, model.Workspace{}, model.WorkspaceMember{}, errs.Unauthorized("authentication required")
+	}
+
+	token, err := s.repos.Token().GetByID(ctx, tokenID)
+	if err != nil {
+		if isNotFound(err) {
+			return model.User{}, model.Workspace{}, model.WorkspaceMember{}, errs.Unauthorized("invalid token")
+		}
+		return model.User{}, model.Workspace{}, model.WorkspaceMember{}, err
+	}
+
+	user, err := s.repos.User().GetByID(ctx, token.UserID)
+	if err != nil {
+		if isNotFound(err) {
+			return model.User{}, model.Workspace{}, model.WorkspaceMember{}, errs.Unauthorized("invalid token")
+		}
+		return model.User{}, model.Workspace{}, model.WorkspaceMember{}, err
+	}
+
+	ws, err := s.repos.Workspace().GetByID(ctx, token.WorkspaceID)
+	if err != nil {
+		if isNotFound(err) {
+			return model.User{}, model.Workspace{}, model.WorkspaceMember{}, errs.Unauthorized("invalid token")
+		}
+		return model.User{}, model.Workspace{}, model.WorkspaceMember{}, err
+	}
+
+	member, err := s.repos.Workspace().GetMember(ctx, token.WorkspaceID, user.ID)
+	if err != nil {
+		if isNotFound(err) {
+			return model.User{}, model.Workspace{}, model.WorkspaceMember{}, errs.Unauthorized("invalid token")
+		}
+		return model.User{}, model.Workspace{}, model.WorkspaceMember{}, err
+	}
+
+	// best-effort: сбой обновления last_used_at не должен рушить аутентификацию.
+	_ = s.repos.Token().UpdateLastUsed(ctx, token.ID)
+
+	return user, ws, member, nil
+}
+
 func (s *AuthService) sessionExpiry() time.Time {
 	return time.Now().Add(s.cfg.SessionTTL)
 }
