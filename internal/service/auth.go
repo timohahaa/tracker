@@ -221,6 +221,17 @@ func (s *AuthService) AuthByTokenWithWorkspace(ctx context.Context, tokenID stri
 	return user, ws, member, nil
 }
 
+// UpdateSettings перезаписывает глобальные настройки пользователя (jsonb) и
+// возвращает актуального пользователя. Валидация current_workspace_id на запись
+// не выполняется — «висячий» id безопасен: фронт валидирует его против списка
+// workspace на чтении и делает фолбэк.
+func (s *AuthService) UpdateSettings(ctx context.Context, userID string, settings model.UserSettings) (model.User, error) {
+	if err := s.repos.User().UpdateSettings(ctx, userID, settings); err != nil {
+		return model.User{}, err
+	}
+	return s.repos.User().GetByID(ctx, userID)
+}
+
 func (s *AuthService) sessionExpiry() time.Time {
 	return time.Now().Add(s.cfg.SessionTTL)
 }

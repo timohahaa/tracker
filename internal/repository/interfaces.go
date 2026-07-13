@@ -41,6 +41,7 @@ type UserRepository interface {
 	Create(ctx context.Context, u model.User) (model.User, error)
 	GetByEmail(ctx context.Context, email string) (model.User, error)
 	GetByID(ctx context.Context, id string) (model.User, error)
+	UpdateSettings(ctx context.Context, userID string, settings model.UserSettings) error
 }
 
 // SessionRepository — доступ к core.session.
@@ -66,6 +67,7 @@ type WorkspaceRepository interface {
 	SlugTaken(ctx context.Context, slug string) (bool, error)
 	CreateMember(ctx context.Context, m model.WorkspaceMember) (model.WorkspaceMember, error)
 	GetByID(ctx context.Context, id string) (model.Workspace, error)
+	ListByUser(ctx context.Context, userID string) ([]model.WorkspaceWithRole, error)
 	Update(ctx context.Context, ws model.Workspace) (model.Workspace, error)
 	ListMembers(ctx context.Context, workspaceID string) ([]model.WorkspaceMemberDetails, error)
 	GetMember(ctx context.Context, workspaceID, userID string) (model.WorkspaceMember, error)

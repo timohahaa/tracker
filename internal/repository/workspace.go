@@ -102,6 +102,31 @@ func (r *WorkspaceRepo) GetByID(ctx context.Context, id string) (model.Workspace
 	return out, nil
 }
 
+// ListByUser возвращает активные workspace, в которых пользователь состоит
+// активным участником, вместе с его ролью. Сортировка по created_at (стабильна).
+// Используется для bootstrap-эндпоинта GET /api/workspaces.
+func (r *WorkspaceRepo) ListByUser(ctx context.Context, userID string) ([]model.WorkspaceWithRole, error) {
+	const q = `
+		SELECT
+			w.id
+			, w.name
+			, w.slug
+			, w.created_at
+			, w.updated_at
+			, w.deleted_at
+			, m.role
+		FROM org.workspace w
+		JOIN org.workspace_member m ON m.workspace_id = w.id
+		WHERE m.user_id = $1 AND m.deleted_at IS NULL AND w.deleted_at IS NULL
+		ORDER BY w.created_at`
+
+	var out []model.WorkspaceWithRole
+	if err := sqlx.SelectContext(ctx, r.db, &out, q, userID); err != nil {
+		return nil, errs.DB(err)
+	}
+	return out, nil
+}
+
 // Update обновляет name/slug workspace и возвращает обновлённую строку.
 // Нарушение уникальности slug → errs.AlreadyExists (через errs.DB).
 func (r *WorkspaceRepo) Update(ctx context.Context, ws model.Workspace) (model.Workspace, error) {

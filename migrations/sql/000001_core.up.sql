@@ -5,6 +5,7 @@ CREATE TABLE core.user (
     , email          text         NOT NULL
     , password_hash  text         NOT NULL
     , display_name   text         NOT NULL
+    , settings       jsonb        NOT NULL  DEFAULT '{}'::jsonb
     , created_at     timestamptz  NOT NULL  DEFAULT now()
     , updated_at     timestamptz  NOT NULL  DEFAULT now()
     , deleted_at     timestamptz

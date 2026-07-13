@@ -15,9 +15,15 @@ type Handler struct {
 	services *service.Services
 }
 
-// New создаёт роутер workspace-эндпоинтов.
+// NewHandler создаёт обработчик workspace-эндпоинтов. Экспортируется, чтобы
+// роутер мог зарегистрировать GET /api/workspaces (ListMine) вне {workspaceID}.
+func NewHandler(services *service.Services) *Handler {
+	return &Handler{services: services}
+}
+
+// New создаёт роутер workspace-эндпоинтов, скоупнутых на {workspaceID}.
 func New(services *service.Services) *chi.Mux {
-	h := &Handler{services: services}
+	h := NewHandler(services)
 	mux := chi.NewMux()
 
 	mux.Get("/", h.get)
@@ -28,6 +34,26 @@ func New(services *service.Services) *chi.Mux {
 	mux.Post("/invites", h.createInvite)
 
 	return mux
+}
+
+// ListMine godoc
+//
+//	@Summary		List my workspaces
+//	@Description	Возвращает workspace'ы текущего пользователя вместе с его ролью (bootstrap SPA).
+//	@Tags			workspace
+//	@Produce		json
+//	@Success		200	{object}	workspacesResponse
+//	@Failure		401	{object}	httpx.ErrorResponse
+//	@Router			/api/workspaces [get]
+func (h *Handler) ListMine(w http.ResponseWriter, r *http.Request) {
+	user := middleware.UserFromContext(r.Context())
+	list, err := h.services.Workspace.ListForUser(r.Context(), user.ID)
+	if err != nil {
+		httpx.RespondError(w, err)
+		return
+	}
+
+	httpx.RespondJSON(w, http.StatusOK, toWorkspacesResponse(list))
 }
 
 // get godoc

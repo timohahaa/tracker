@@ -294,6 +294,20 @@ func (mr *MockUserRepositoryMockRecorder) GetByID(ctx, id any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetByID", reflect.TypeOf((*MockUserRepository)(nil).GetByID), ctx, id)
 }
 
+// UpdateSettings mocks base method.
+func (m *MockUserRepository) UpdateSettings(ctx context.Context, userID string, settings model.UserSettings) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateSettings", ctx, userID, settings)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateSettings indicates an expected call of UpdateSettings.
+func (mr *MockUserRepositoryMockRecorder) UpdateSettings(ctx, userID, settings any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateSettings", reflect.TypeOf((*MockUserRepository)(nil).UpdateSettings), ctx, userID, settings)
+}
+
 // MockSessionRepository is a mock of SessionRepository interface.
 type MockSessionRepository struct {
 	ctrl     *gomock.Controller
@@ -584,6 +598,21 @@ func (m *MockWorkspaceRepository) GetMember(ctx context.Context, workspaceID, us
 func (mr *MockWorkspaceRepositoryMockRecorder) GetMember(ctx, workspaceID, userID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMember", reflect.TypeOf((*MockWorkspaceRepository)(nil).GetMember), ctx, workspaceID, userID)
+}
+
+// ListByUser mocks base method.
+func (m *MockWorkspaceRepository) ListByUser(ctx context.Context, userID string) ([]model.WorkspaceWithRole, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListByUser", ctx, userID)
+	ret0, _ := ret[0].([]model.WorkspaceWithRole)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListByUser indicates an expected call of ListByUser.
+func (mr *MockWorkspaceRepositoryMockRecorder) ListByUser(ctx, userID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListByUser", reflect.TypeOf((*MockWorkspaceRepository)(nil).ListByUser), ctx, userID)
 }
 
 // ListMembers mocks base method.

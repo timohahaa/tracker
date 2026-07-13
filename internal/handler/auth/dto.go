@@ -24,10 +24,22 @@ type loginRequest struct {
 
 // userResponse — публичное представление пользователя (без password_hash).
 type userResponse struct {
-	ID          string    `json:"id"`
-	Email       string    `json:"email"`
-	DisplayName string    `json:"display_name"`
-	CreatedAt   time.Time `json:"created_at"`
+	ID          string           `json:"id"`
+	Email       string           `json:"email"`
+	DisplayName string           `json:"display_name"`
+	Settings    settingsResponse `json:"settings"`
+	CreatedAt   time.Time        `json:"created_at"`
+}
+
+// settingsResponse — глобальные настройки пользователя.
+type settingsResponse struct {
+	CurrentWorkspaceID *string `json:"current_workspace_id,omitempty"`
+}
+
+// updateMeRequest — тело PATCH /api/auth/me. Поля опциональны (partial update):
+// отсутствие поля означает «не менять».
+type updateMeRequest struct {
+	CurrentWorkspaceID *string `json:"current_workspace_id" validate:"omitempty,uuid"`
 }
 
 // workspaceResponse — публичное представление workspace.
@@ -63,6 +75,7 @@ func toUserResponse(u model.User) userResponse {
 		ID:          u.ID,
 		Email:       u.Email,
 		DisplayName: u.DisplayName,
+		Settings:    settingsResponse{CurrentWorkspaceID: u.Settings.CurrentWorkspaceID},
 		CreatedAt:   u.CreatedAt,
 	}
 }

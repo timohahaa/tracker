@@ -29,6 +29,7 @@ func (r *UserRepo) Create(ctx context.Context, u model.User) (model.User, error)
 			, email
 			, password_hash
 			, display_name
+			, settings
 			, created_at
 			, updated_at
 			, deleted_at`
@@ -49,6 +50,7 @@ func (r *UserRepo) GetByEmail(ctx context.Context, email string) (model.User, er
 			, email
 			, password_hash
 			, display_name
+			, settings
 			, created_at
 			, updated_at
 			, deleted_at
@@ -70,6 +72,7 @@ func (r *UserRepo) GetByID(ctx context.Context, id string) (model.User, error) {
 			, email
 			, password_hash
 			, display_name
+			, settings
 			, created_at
 			, updated_at
 			, deleted_at
@@ -81,4 +84,20 @@ func (r *UserRepo) GetByID(ctx context.Context, id string) (model.User, error) {
 		return model.User{}, errs.DB(err)
 	}
 	return out, nil
+}
+
+// UpdateSettings перезаписывает jsonb-настройки пользователя. Нет строки —
+// не ошибка (idempotent), т.к. вызывается для аутентифицированного пользователя.
+func (r *UserRepo) UpdateSettings(ctx context.Context, userID string, settings model.UserSettings) error {
+	const q = `
+		UPDATE core.user
+		SET
+			settings = $2
+			, updated_at = now()
+		WHERE id = $1 AND deleted_at IS NULL`
+
+	if _, err := r.db.ExecContext(ctx, q, userID, settings); err != nil {
+		return errs.DB(err)
+	}
+	return nil
 }

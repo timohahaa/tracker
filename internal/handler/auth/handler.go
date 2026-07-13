@@ -7,6 +7,7 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/timohahaa/tracker/internal/handler/httpx"
+	"github.com/timohahaa/tracker/internal/handler/middleware"
 	"github.com/timohahaa/tracker/internal/model"
 	"github.com/timohahaa/tracker/internal/service"
 )
@@ -16,15 +17,20 @@ type Handler struct {
 	services *service.Services
 }
 
-// New создаёт роутер auth-эндпоинтов.
+// New создаёт роутер auth-эндпоинтов. /me регистрируется здесь же с per-route
+// SessionAuth: ручки аутентифицированные, но без workspace-контекста (bootstrap SPA).
 func New(services *service.Services) *chi.Mux {
 	h := &Handler{services: services}
+	mw := middleware.New(services)
 	mux := chi.NewMux()
 
 	mux.Post("/register", h.register)
 	mux.Post("/login", h.login)
 	mux.Post("/logout", h.logout)
 	mux.Post("/accept-invite", h.acceptInvite)
+
+	mux.With(mw.SessionAuth).Get("/me", h.me)
+	mux.With(mw.SessionAuth).Patch("/me", h.updateMe)
 
 	return mux
 }

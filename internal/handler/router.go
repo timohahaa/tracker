@@ -36,23 +36,30 @@ func New(services *service.Services, cfg config.Config) http.Handler {
 
 	// REST API (/api/*)
 	r.Route("/api", func(r chi.Router) {
-		// Публичные auth-эндпоинты (без workspace-контекста).
+		// Публичные auth-эндпоинты + аутентифицированный /auth/me
 		r.Mount("/auth", auth.New(services))
 
-		// Аутентифицированные, скоупнутые на workspace.
+		// Аутентифицированные (SessionAuth). Список моих workspace живёт вне
+		// {workspaceID} (без LoadWorkspace), остальное — скоупнуто на workspace.
 		r.Group(func(r chi.Router) {
 			r.Use(mw.SessionAuth)
-			r.Route("/workspaces/{workspaceID}", func(r chi.Router) {
-				r.Use(mw.LoadWorkspace)
 
-				r.Mount("/teams", team.New(services))
-				r.Mount("/issues", issue.New(services))
-				r.Mount("/projects", project.New(services))
-				r.Mount("/labels", label.New(services))
-				r.Mount("/integrations", integration.New(services))
-				r.Mount("/tokens", token.New(services))
-				// Workspace-level (GET/PATCH корня, /members, /invites) — монтируется последним.
-				r.Mount("/", workspace.New(services))
+			r.Route("/workspaces", func(r chi.Router) {
+				wh := workspace.NewHandler(services)
+				r.Get("/", wh.ListMine)
+
+				r.Route("/{workspaceID}", func(r chi.Router) {
+					r.Use(mw.LoadWorkspace)
+
+					r.Mount("/teams", team.New(services))
+					r.Mount("/issues", issue.New(services))
+					r.Mount("/projects", project.New(services))
+					r.Mount("/labels", label.New(services))
+					r.Mount("/integrations", integration.New(services))
+					r.Mount("/tokens", token.New(services))
+					// Workspace-level (GET/PATCH корня, /members, /invites) — монтируется последним.
+					r.Mount("/", workspace.New(services))
+				})
 			})
 		})
 	})

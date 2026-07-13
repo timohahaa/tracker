@@ -33,6 +33,13 @@ type WorkspaceMember struct {
 	DeletedAt   *time.Time    `db:"deleted_at"`
 }
 
+// WorkspaceWithRole — workspace + роль текущего пользователя (JOIN
+// org.workspace_member). Read-модель для списка «мои workspace» (GET /api/workspaces).
+type WorkspaceWithRole struct {
+	Workspace
+	Role WorkspaceRole `db:"role"`
+}
+
 // WorkspaceMemberDetails — участник + данные пользователя (JOIN core.user).
 // Read-модель для списка участников: встраивает WorkspaceMember и добавляет
 // email/display_name из core.user.

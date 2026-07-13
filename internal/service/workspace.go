@@ -48,6 +48,12 @@ func (s *WorkspaceService) Load(ctx context.Context, workspaceID, userID string)
 	return ws, member, nil
 }
 
+// ListForUser возвращает workspace'ы, в которых пользователь состоит, вместе с
+// его ролью. Для bootstrap-эндпоинта GET /api/workspaces (без workspace-контекста).
+func (s *WorkspaceService) ListForUser(ctx context.Context, userID string) ([]model.WorkspaceWithRole, error) {
+	return s.repos.Workspace().ListByUser(ctx, userID)
+}
+
 // UpdateSettings обновляет настройки workspace (name/slug). Доступно только
 // owner/admin. slug нормализуется через slugify.
 func (s *WorkspaceService) UpdateSettings(ctx context.Context, actor model.WorkspaceMember, params UpdateSettingsParams) (model.Workspace, error) {

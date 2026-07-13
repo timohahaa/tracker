@@ -31,6 +31,22 @@ type workspaceResponse struct {
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
+// workspaceMineResponse — элемент списка «мои workspace»: workspace + роль
+// текущего пользователя.
+type workspaceMineResponse struct {
+	ID        string    `json:"id"`
+	Name      string    `json:"name"`
+	Slug      string    `json:"slug"`
+	Role      string    `json:"role"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+// workspacesResponse — ответ GET /api/workspaces.
+type workspacesResponse struct {
+	Data []workspaceMineResponse `json:"data"`
+}
+
 // memberResponse — публичное представление участника workspace.
 type memberResponse struct {
 	UserID      string    `json:"user_id"`
@@ -86,6 +102,21 @@ func toMemberResponse(m model.WorkspaceMember, email, displayName string) member
 		Title:       m.Title,
 		CreatedAt:   m.CreatedAt,
 	}
+}
+
+func toWorkspacesResponse(list []model.WorkspaceWithRole) workspacesResponse {
+	data := make([]workspaceMineResponse, 0, len(list))
+	for _, w := range list {
+		data = append(data, workspaceMineResponse{
+			ID:        w.ID,
+			Name:      w.Name,
+			Slug:      w.Slug,
+			Role:      string(w.Role),
+			CreatedAt: w.CreatedAt,
+			UpdatedAt: w.UpdatedAt,
+		})
+	}
+	return workspacesResponse{Data: data}
 }
 
 func toMembersResponse(members []model.WorkspaceMemberDetails) membersResponse {

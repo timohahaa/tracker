@@ -57,6 +57,8 @@ LIMIT 50
 | POST | `/api/auth/login` | Логин, получение session cookie | Public |
 | POST | `/api/auth/logout` | Logout, удаление сессии | Authenticated |
 | POST | `/api/auth/accept-invite` | Принять инвайт по токену | Public |
+| GET | `/api/auth/me` | Текущий пользователь (bootstrap SPA) | Authenticated |
+| PATCH | `/api/auth/me` | Обновление настроек (current_workspace_id) | Authenticated |
 
 ---
 
@@ -64,6 +66,7 @@ LIMIT 50
 
 | Method | Path | Description | Access |
 |--------|------|-------------|--------|
+| GET | `/api/workspaces` | Список моих workspace (с ролью) | Authenticated |
 | GET | `/api/workspaces/{workspaceID}` | Текущий workspace | Member |
 | PATCH | `/api/workspaces/{workspaceID}` | Обновление настроек | Owner/Admin |
 | GET | `/api/workspaces/{workspaceID}/members` | Список участников | Member |
