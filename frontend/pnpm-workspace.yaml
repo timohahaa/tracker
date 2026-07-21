@@ -1,0 +1,23 @@
+# Cooldown: не ставить версии моложе 14 дней (в минутах). Действует и на
+# транзитивные зависимости. pnpm 11 по умолчанию ставит 1440 (1 день).
+minimumReleaseAge: 20160
+# Enforce, даже если условию удовлетворяет только более свежая версия.
+minimumReleaseAgeStrict: true
+
+# Пин прямых зависимостей без ^ при `pnpm add` (реальный пин всё равно в
+# lockfile; это про читаемость диффов в package.json).
+savePrefix: ''
+
+# Решения по build/lifecycle-скриптам зависимостей (pnpm 11: единый map
+# allowBuilds). Всё, чего здесь нет, скриптов НЕ выполняет (strictDepBuilds
+# по умолчанию true). Новые пакеты со скриптами pnpm допишет сюда с
+# плейсхолдером — надо будет осознанно поставить true/false.
+allowBuilds:
+  # esbuild нужен vite для dev/build.
+  esbuild: true
+  # @scarf/scarf — телеметрия; скрипт не нужен для работы.
+  '@scarf/scarf': false
+
+# Когда появятся внутренние пакеты — исключить их из cooldown:
+# minimumReleaseAgeExclude:
+#   - '@my-org/*'
