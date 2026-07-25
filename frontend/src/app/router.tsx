@@ -1,7 +1,6 @@
 import { lazy, Suspense } from 'react'
 import {
   createBrowserRouter,
-  Navigate,
   Outlet,
   type RouteObject,
 } from 'react-router-dom'
@@ -9,6 +8,8 @@ import {
 import { RouteErrorBoundary } from '@/components/common/route-error-boundary'
 import { RouteFallback } from '@/components/common/skeletons'
 import { ProtectedRoute } from '@/features/auth/protected-route'
+import { RootIndexRedirect } from '@/features/auth/root-index-redirect'
+import { SessionProvider } from '@/features/auth/session-provider'
 
 const LoginPage = lazy(() => import('@/pages/login-page'))
 const RegisterPage = lazy(() => import('@/pages/register-page'))
@@ -26,9 +27,15 @@ function lazyElement(Element: React.ComponentType): RouteObject['element'] {
 }
 
 // Root layout exists so the errorElement below covers the whole route tree.
-// The real app-shell (sidebar/topbar) arrives in Phase 1.4.
+// SessionProvider is mounted here so it sits inside both the QueryClientProvider
+// (server-state hooks) and the RouterProvider (router hooks) while wrapping every
+// route. The real app-shell (sidebar/topbar) arrives in Phase 1.4.
 function RootLayout() {
-  return <Outlet />
+  return (
+    <SessionProvider>
+      <Outlet />
+    </SessionProvider>
+  )
 }
 
 export const router = createBrowserRouter([
@@ -37,16 +44,16 @@ export const router = createBrowserRouter([
     element: <RootLayout />,
     errorElement: <RouteErrorBoundary />,
     children: [
-      // Temporary landing redirect. Phase 1.3 replaces this with real workspace
-      // resolution (session -> default workspace slug).
-      { index: true, element: <Navigate to="/login" replace /> },
+      // Landing redirect: authenticated -> default workspace slug, otherwise
+      // -> /login (resolved from the session bootstrap).
+      { index: true, element: <RootIndexRedirect /> },
 
       // Public routes (stubs until Phase 2.1).
       { path: 'login', element: lazyElement(LoginPage) },
       { path: 'register', element: lazyElement(RegisterPage) },
 
       // Protected workspace subtree. ProtectedRoute renders <Outlet /> only when
-      // the (placeholder) session is authenticated, otherwise -> /login.
+      // the session is authenticated and the slug resolves, otherwise redirects.
       {
         path: ':workspaceSlug',
         element: <ProtectedRoute />,
