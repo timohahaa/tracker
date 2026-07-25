@@ -1,14 +1,16 @@
-import { Navigate, Outlet, useLocation, useParams } from 'react-router-dom'
+import { Navigate, useLocation, useParams } from 'react-router-dom'
 
 import { ErrorState } from '@/components/common/error-state'
 import { RouteFallback } from '@/components/common/skeletons'
+import { AppShell } from '@/components/layout/app-shell'
 
 import { useSession } from './session-provider'
 import { WorkspaceProvider } from './workspace-context'
 
 // Guard for authenticated `/:workspaceSlug` subtrees. Rendered as a layout
-// route, so it yields an <Outlet /> (wrapped in the workspace context) once the
-// session is valid and the URL slug resolves to one of the user's workspaces.
+// route, so it yields the app-shell (which renders the nested <Outlet />,
+// wrapped in the workspace context) once the session is valid and the URL slug
+// resolves to one of the user's workspaces.
 export function ProtectedRoute() {
   const { status, error, idBySlug, workspaceById, defaultWorkspace } =
     useSession()
@@ -55,7 +57,7 @@ export function ProtectedRoute() {
         role: workspace.role ?? '',
       }}
     >
-      <Outlet />
+      <AppShell />
     </WorkspaceProvider>
   )
 }
