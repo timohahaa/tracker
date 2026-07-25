@@ -108,11 +108,10 @@
 │   └── swagger/            — сгенерированная OpenAPI spec (swag init)
 ├── frontend/               — Vite + React + shadcn/ui
 │   ├── src/
-│   │   ├── api/            — сгенерированный клиент (orval)
+│   │   ├── api/            — сгенерированные типы OpenAPI (openapi-typescript) + fetch-клиент
 │   │   ├── components/
 │   │   ├── pages/
 │   │   └── App.tsx
-│   ├── orval.config.ts
 │   ├── vite.config.ts
 │   └── package.json
 ├── docker-compose.yml      — PostgreSQL для разработки
@@ -149,7 +148,7 @@
 
 - SPA с client-side routing (React Router).
 - UI-компоненты на shadcn/ui + Tailwind CSS.
-- Серверное состояние через TanStack Query (хуки сгенерированы orval из OpenAPI).
+- Серверное состояние через TanStack Query; типобезопасные хуки (openapi-react-query) поверх типов, сгенерированных openapi-typescript из OpenAPI.
 - При разработке: Vite dev server проксирует `/api/*` на Go-бэкенд.
 - В production: Go-бинарник раздаёт `frontend/dist/` как static files.
 
@@ -240,13 +239,13 @@ docker-compose up -d postgres
 go run ./cmd/app
 
 # Запуск фронтенда (proxy на бэкенд)
-cd frontend && npm run dev
+cd frontend && pnpm dev
 
 # Генерация OpenAPI spec
 swag init -g cmd/app/main.go -o docs/swagger
 
-# Генерация TS-клиента
-cd frontend && npx orval
+# Генерация TS-типов из OpenAPI
+cd frontend && pnpm run api:gen
 ```
 
 ## Future Considerations

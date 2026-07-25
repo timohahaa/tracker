@@ -54,7 +54,7 @@ Accepted
 | Auth (API/MCP) | **API tokens** (per user) | Stateless, для ИИ-агентов и автоматизации |
 | MCP transport | **HTTP Streamable** (`/mcp` endpoint) | Встроен в основной сервер, подключается к Cursor/агентам локально |
 | API spec | **swaggo/swag** | Генерация OpenAPI из аннотаций в Go-коде |
-| Frontend API client | **orval** + **TanStack Query** | Генерация TS-клиента + React Query хуков из OpenAPI spec |
+| Frontend API client | **openapi-typescript** + **openapi-fetch** + **openapi-react-query** + **TanStack Query** | Генерация TS-типов из OpenAPI + типобезопасные React Query хуки (на fetch) |
 | Frontend state | **TanStack Query** (server) + React state (UI) | Кеширование, рефетч, optimistic updates |
 | Logging | **logrus** | Structured logging |
 | Repo structure | **Monorepo** | `frontend/` + Go backend в корне |
