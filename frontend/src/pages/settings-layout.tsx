@@ -3,9 +3,9 @@ import { NavLink, Outlet } from 'react-router-dom'
 import { useCurrentWorkspace } from '@/features/auth/workspace-context'
 import { cn } from '@/lib/utils'
 
-// Settings sub-sections. Kept as a single source of truth so Phase 2.7 (GitLab
-// integration, API tokens) can slot in additional tabs here without touching the
-// route tree beyond registering the child routes.
+// Settings sub-sections. Kept as a single source of truth so new areas can slot
+// in additional tabs here without touching the route tree beyond registering the
+// child routes.
 //
 // `to` is appended to `/:slug/settings`; an empty string is the index (General).
 // `end` marks index/leaf links so a parent tab isn't highlighted on a child path.
@@ -13,6 +13,8 @@ const SETTINGS_TABS: { label: string; to: string; end: boolean }[] = [
   { label: 'General', to: '', end: true },
   { label: 'Members', to: 'members', end: true },
   { label: 'Labels', to: 'labels', end: true },
+  { label: 'Integrations', to: 'integrations', end: true },
+  { label: 'API tokens', to: 'tokens', end: true },
 ]
 
 // Layout route for the workspace Settings area: a shared header + a horizontal
