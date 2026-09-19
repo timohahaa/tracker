@@ -23,6 +23,8 @@ const WorkspaceMembersPage = lazy(
 )
 const TeamsPage = lazy(() => import('@/pages/teams-page'))
 const TeamDetailPage = lazy(() => import('@/pages/team-detail-page'))
+const ProjectsPage = lazy(() => import('@/pages/projects-page'))
+const ProjectDetailPage = lazy(() => import('@/pages/project-detail-page'))
 const IssuesPage = lazy(() => import('@/pages/issues-page'))
 const IssueDetailPage = lazy(() => import('@/pages/issue-detail-page'))
 const NotFoundPage = lazy(() => import('@/pages/not-found-page'))
@@ -79,6 +81,13 @@ export const router = createBrowserRouter([
           // owns its own Settings/Statuses/Members tabs.
           { path: 'teams', element: lazyElement(TeamsPage) },
           { path: 'teams/:teamId', element: lazyElement(TeamDetailPage) },
+          // Projects (2.5): list + detail (keyed by project UUID). The detail
+          // page owns its Overview/Issues tabs and issue link/unlink.
+          { path: 'projects', element: lazyElement(ProjectsPage) },
+          {
+            path: 'projects/:projectId',
+            element: lazyElement(ProjectDetailPage),
+          },
           // Workspace Settings area (2.2). A layout route with sub-section tabs
           // (General/Members); 2.7 adds GitLab + tokens as sibling children.
           {
