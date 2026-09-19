@@ -21,6 +21,7 @@ const WorkspaceSettingsPage = lazy(
 const WorkspaceMembersPage = lazy(
   () => import('@/pages/workspace-members-page'),
 )
+const WorkspaceLabelsPage = lazy(() => import('@/pages/workspace-labels-page'))
 const TeamsPage = lazy(() => import('@/pages/teams-page'))
 const TeamDetailPage = lazy(() => import('@/pages/team-detail-page'))
 const ProjectsPage = lazy(() => import('@/pages/projects-page'))
@@ -96,6 +97,7 @@ export const router = createBrowserRouter([
             children: [
               { index: true, element: lazyElement(WorkspaceSettingsPage) },
               { path: 'members', element: lazyElement(WorkspaceMembersPage) },
+              { path: 'labels', element: lazyElement(WorkspaceLabelsPage) },
             ],
           },
           { path: '*', element: lazyElement(NotFoundPage) },

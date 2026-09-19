@@ -8,6 +8,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useCurrentUser } from '@/features/auth/session-provider'
 import { useCurrentWorkspace } from '@/features/auth/workspace-context'
+import { LabelsManager } from '@/features/label/labels-manager'
 import { TeamMembers } from '@/features/team/team-members'
 import { TeamSettingsForm } from '@/features/team/team-settings-form'
 import { TeamStatuses } from '@/features/team/team-statuses'
@@ -108,6 +109,7 @@ export default function TeamDetailPage() {
           <TabsTrigger value="settings">Settings</TabsTrigger>
           <TabsTrigger value="statuses">Statuses</TabsTrigger>
           <TabsTrigger value="members">Members</TabsTrigger>
+          <TabsTrigger value="labels">Labels</TabsTrigger>
         </TabsList>
 
         <TabsContent value="settings" className="pt-4">
@@ -124,6 +126,10 @@ export default function TeamDetailPage() {
 
         <TabsContent value="members" className="pt-4">
           <TeamMembers teamID={teamID} canManage={canManage} />
+        </TabsContent>
+
+        <TabsContent value="labels" className="pt-4">
+          <LabelsManager teamID={teamID} />
         </TabsContent>
       </Tabs>
     </div>

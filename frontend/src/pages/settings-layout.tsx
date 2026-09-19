@@ -12,6 +12,7 @@ import { cn } from '@/lib/utils'
 const SETTINGS_TABS: { label: string; to: string; end: boolean }[] = [
   { label: 'General', to: '', end: true },
   { label: 'Members', to: 'members', end: true },
+  { label: 'Labels', to: 'labels', end: true },
 ]
 
 // Layout route for the workspace Settings area: a shared header + a horizontal

@@ -42,3 +42,28 @@ export function relativeLuminance(hex: string): number {
 export function readableTextColor(backgroundHex: string): '#000000' | '#ffffff' {
   return relativeLuminance(backgroundHex) > 0.5 ? '#000000' : '#ffffff'
 }
+
+/** True when the string is a valid 3- or 6-digit hex color (with/without `#`). */
+export function isValidHex(hex: string): boolean {
+  return parseHex(hex) !== null
+}
+
+/**
+ * Curated label palette (Linear-like), consistent with the design tokens. Used
+ * as the swatch grid in the label color picker; a free hex input is still
+ * allowed alongside these.
+ */
+export const LABEL_COLORS = [
+  '#95a2b3', // gray
+  '#6b7280', // slate
+  '#eb5757', // red
+  '#f2994a', // orange
+  '#e2a336', // amber
+  '#f2c94c', // yellow
+  '#4cb782', // green
+  '#26b5ce', // cyan
+  '#0f7fff', // blue
+  '#5e6ad2', // indigo
+  '#bb87fc', // purple
+  '#eb5aa5', // pink
+] as const
