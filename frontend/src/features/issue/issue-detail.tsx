@@ -5,10 +5,8 @@ import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 
 import { AppError } from '@/api/client'
-import { LabelChip } from '@/components/label-dot'
 import { PriorityBadge } from '@/components/priority-icon'
 import { StatusBadge } from '@/components/status-badge'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -35,8 +33,9 @@ import { useTeamStatuses } from '@/features/team/use-team-statuses'
 import { type Member, useMembers } from '@/features/workspace/use-members'
 import { PRIORITIES, type Priority,PRIORITY_ORDER } from '@/lib/priority'
 import { STATUS_GROUP_ORDER, STATUS_GROUPS, type StatusGroup } from '@/lib/status'
-import { cn } from '@/lib/utils'
 
+import { IssueAssignees } from './issue-assignees'
+import { IssueLabels } from './issue-labels'
 import {
   issueQueryKey,
   type UpdateIssueBody,
@@ -54,18 +53,6 @@ function errorMessage(err: unknown): string {
 
 function toPriority(value: string | undefined): Priority {
   return value && value in PRIORITIES ? (value as Priority) : 'none'
-}
-
-function memberInitials(member: Member | undefined): string {
-  const source = member?.display_name?.trim() || member?.email || ''
-  const parts = source.split(/\s+/).filter(Boolean)
-  if (parts.length === 0) return '?'
-  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()
-  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
-}
-
-function memberName(member: Member | undefined, userId: string): string {
-  return member?.display_name?.trim() || member?.email || userId
 }
 
 function formatDate(iso: string | undefined): string | null {
@@ -137,8 +124,6 @@ export function IssueDetail({ issueID, issue }: IssueDetailProps) {
   const currentGroup: StatusGroup =
     (currentStatus?.group as StatusGroup) ?? 'backlog'
   const priority = toPriority(issue.priority)
-  const assignees = issue.assignees ?? []
-  const labels = issue.labels ?? []
 
   const statusSections = useMemo(() => {
     const buckets = new Map<StatusGroup, typeof statuses>()
@@ -409,54 +394,20 @@ export function IssueDetail({ issueID, issue }: IssueDetailProps) {
         </PropertyRow>
 
         <PropertyRow label="Assignees">
-          {assignees.length > 0 ? (
-            <ul className="space-y-1.5">
-              {assignees.map((assignee) => {
-                const userId = assignee.user_id ?? ''
-                const member = memberMap.get(userId)
-                return (
-                  <li key={userId} className="flex items-center gap-2 text-sm">
-                    <Avatar
-                      className={cn(
-                        'h-5 w-5',
-                        assignee.is_primary && 'ring-1 ring-primary',
-                      )}
-                    >
-                      <AvatarFallback className="text-[10px]">
-                        {memberInitials(member)}
-                      </AvatarFallback>
-                    </Avatar>
-                    <span className="truncate">
-                      {memberName(member, userId)}
-                    </span>
-                    {assignee.is_primary ? (
-                      <span className="text-xs text-muted-foreground">
-                        (responsible)
-                      </span>
-                    ) : null}
-                  </li>
-                )
-              })}
-            </ul>
-          ) : (
-            <span className="text-sm text-muted-foreground">No assignees</span>
-          )}
+          <IssueAssignees
+            workspaceID={workspaceID}
+            issueID={issueID}
+            issue={issue}
+            memberMap={memberMap}
+          />
         </PropertyRow>
 
         <PropertyRow label="Labels">
-          {labels.length > 0 ? (
-            <div className="flex flex-wrap gap-1.5">
-              {labels.map((label) => (
-                <LabelChip
-                  key={label.id}
-                  name={label.name ?? ''}
-                  color={label.color ?? '#8a8f98'}
-                />
-              ))}
-            </div>
-          ) : (
-            <span className="text-sm text-muted-foreground">No labels</span>
-          )}
+          <IssueLabels
+            workspaceID={workspaceID}
+            issueID={issueID}
+            issue={issue}
+          />
         </PropertyRow>
 
         <div className="space-y-1.5 border-t pt-4 text-xs text-muted-foreground">
