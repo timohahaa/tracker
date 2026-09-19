@@ -21,6 +21,8 @@ const WorkspaceSettingsPage = lazy(
 const WorkspaceMembersPage = lazy(
   () => import('@/pages/workspace-members-page'),
 )
+const TeamsPage = lazy(() => import('@/pages/teams-page'))
+const TeamDetailPage = lazy(() => import('@/pages/team-detail-page'))
 const NotFoundPage = lazy(() => import('@/pages/not-found-page'))
 
 // Wraps a lazy page element in the shared Suspense fallback so route-level
@@ -66,6 +68,10 @@ export const router = createBrowserRouter([
         element: <ProtectedRoute />,
         children: [
           { index: true, element: lazyElement(WorkspaceHomePage) },
+          // Teams (2.3): list + detail (keyed by team UUID). The detail page
+          // owns its own Settings/Statuses/Members tabs.
+          { path: 'teams', element: lazyElement(TeamsPage) },
+          { path: 'teams/:teamId', element: lazyElement(TeamDetailPage) },
           // Workspace Settings area (2.2). A layout route with sub-section tabs
           // (General/Members); 2.7 adds GitLab + tokens as sibling children.
           {
