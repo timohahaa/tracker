@@ -24,6 +24,7 @@ const WorkspaceMembersPage = lazy(
 const TeamsPage = lazy(() => import('@/pages/teams-page'))
 const TeamDetailPage = lazy(() => import('@/pages/team-detail-page'))
 const IssuesPage = lazy(() => import('@/pages/issues-page'))
+const IssueDetailPage = lazy(() => import('@/pages/issue-detail-page'))
 const NotFoundPage = lazy(() => import('@/pages/not-found-page'))
 
 // Wraps a lazy page element in the shared Suspense fallback so route-level
@@ -70,8 +71,10 @@ export const router = createBrowserRouter([
         children: [
           { index: true, element: lazyElement(WorkspaceHomePage) },
           // Issues (2.4.1): workspace-wide list with filters/sort/search + cursor
-          // infinite scroll. Detail/create/edit arrive in 2.4.2.
+          // infinite scroll. Detail/create/edit (2.4.2) live on the child route,
+          // keyed by identifier (e.g. ENG-123) or UUID.
           { path: 'issues', element: lazyElement(IssuesPage) },
+          { path: 'issues/:identifier', element: lazyElement(IssueDetailPage) },
           // Teams (2.3): list + detail (keyed by team UUID). The detail page
           // owns its own Settings/Statuses/Members tabs.
           { path: 'teams', element: lazyElement(TeamsPage) },

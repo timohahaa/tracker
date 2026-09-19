@@ -5,6 +5,7 @@ import { EmptyState } from '@/components/common/empty-state'
 import { ErrorState } from '@/components/common/error-state'
 import { ListSkeleton } from '@/components/common/skeletons'
 import { useCurrentWorkspace } from '@/features/auth/workspace-context'
+import { CreateIssueDialog } from '@/features/issue/create-issue-dialog'
 import { IssuesFilterBar } from '@/features/issue/issues-filter-bar'
 import { IssuesList } from '@/features/issue/issues-list'
 import { useIssueFilters } from '@/features/issue/use-issue-filters'
@@ -59,11 +60,14 @@ export default function IssuesPage() {
 
   return (
     <div className="mx-auto w-full max-w-5xl px-6 py-8">
-      <header className="mb-4">
-        <h1 className="text-2xl font-semibold tracking-tight">Issues</h1>
-        <p className="text-sm text-muted-foreground">
-          All issues across the workspace.
-        </p>
+      <header className="mb-4 flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Issues</h1>
+          <p className="text-sm text-muted-foreground">
+            All issues across the workspace.
+          </p>
+        </div>
+        <CreateIssueDialog />
       </header>
 
       <div className="mb-4">
@@ -102,6 +106,7 @@ export default function IssuesPage() {
             icon={ListTodo}
             title="No issues yet"
             description="Issues you create will show up here."
+            action={<CreateIssueDialog />}
           />
         )
       ) : (

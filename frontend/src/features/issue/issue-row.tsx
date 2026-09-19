@@ -1,9 +1,11 @@
 import { CalendarDays } from 'lucide-react'
+import { Link } from 'react-router-dom'
 
 import { LabelChip } from '@/components/label-dot'
 import { PriorityIcon } from '@/components/priority-icon'
 import { StatusBadge } from '@/components/status-badge'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { useCurrentWorkspace } from '@/features/auth/workspace-context'
 import type { Member } from '@/features/workspace/use-members'
 import { PRIORITIES,type Priority } from '@/lib/priority'
 import { type StatusGroup } from '@/lib/status'
@@ -49,9 +51,9 @@ interface IssueRowProps {
 }
 
 // A single issue line: status icon, identifier, title, priority, labels,
-// assignee avatars and due date. Display-only in this slice (detail/edit is
-// 2.4.2), so it is not a link yet.
+// assignee avatars and due date. Links to the issue detail route (2.4.2).
 export function IssueRow({ issue, statusMap, memberMap }: IssueRowProps) {
+  const { slug } = useCurrentWorkspace()
   const group: StatusGroup =
     (issue.status_id && statusMap.get(issue.status_id)?.group) || 'backlog'
   const statusName = issue.status_id
@@ -63,7 +65,10 @@ export function IssueRow({ issue, statusMap, memberMap }: IssueRowProps) {
   const labels = issue.labels ?? []
 
   return (
-    <div className="flex items-center gap-3 border-b px-4 py-2.5 last:border-b-0 hover:bg-accent/50">
+    <Link
+      to={`/${slug}/issues/${issue.identifier ?? issue.id ?? ''}`}
+      className="flex items-center gap-3 border-b px-4 py-2.5 last:border-b-0 hover:bg-accent/50"
+    >
       <span className="shrink-0" title={statusName || undefined}>
         <StatusBadge status={group} iconOnly />
       </span>
@@ -127,6 +132,6 @@ export function IssueRow({ issue, statusMap, memberMap }: IssueRowProps) {
           ) : null}
         </div>
       ) : null}
-    </div>
+    </Link>
   )
 }
