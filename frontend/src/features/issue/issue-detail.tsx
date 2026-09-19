@@ -139,13 +139,15 @@ export function IssueDetail({ issueID, issue }: IssueDetailProps) {
     })).filter((section) => section.items.length > 0)
   }, [statuses])
 
-  // Optimistic single-field patch for status/priority: write the cache
-  // immediately, roll back on error. The mutation's onSuccess reconciles with
-  // the server response. Only scalar fields are patched here, so merging the
-  // request body onto the cached issue is safe (cast bridges the request/response
-  // DTO shapes).
-  const optimisticPatch = (patch: UpdateIssueBody) => {
+  // Optimistic single-field patch for status/priority: cancel in-flight refetches
+  // (so a slower earlier request can't clobber the optimistic value), write the
+  // cache immediately, then roll back on error. The mutation's onSuccess
+  // reconciles with the server response. Only scalar fields are patched here, so
+  // merging the request body onto the cached issue is safe (cast bridges the
+  // request/response DTO shapes).
+  const optimisticPatch = async (patch: UpdateIssueBody) => {
     const key = issueQueryKey(workspaceID, issueID)
+    await queryClient.cancelQueries({ queryKey: key })
     const previous = queryClient.getQueryData<Issue>(key)
     queryClient.setQueryData<Issue>(key, (old) =>
       old ? ({ ...old, ...patch } as Issue) : old,
@@ -314,7 +316,9 @@ export function IssueDetail({ issueID, issue }: IssueDetailProps) {
         <PropertyRow label="Status">
           <Select
             value={issue.status_id || undefined}
-            onValueChange={(next) => optimisticPatch({ status_id: next })}
+            onValueChange={(next) => {
+              void optimisticPatch({ status_id: next })
+            }}
             disabled={statuses.length === 0}
           >
             <SelectTrigger className="w-full">
@@ -345,9 +349,9 @@ export function IssueDetail({ issueID, issue }: IssueDetailProps) {
         <PropertyRow label="Priority">
           <Select
             value={priority}
-            onValueChange={(next) =>
-              optimisticPatch({ priority: next as Priority })
-            }
+            onValueChange={(next) => {
+              void optimisticPatch({ priority: next as Priority })
+            }}
           >
             <SelectTrigger className="w-full">
               <SelectValue>

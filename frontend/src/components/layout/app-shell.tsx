@@ -6,6 +6,7 @@ import {
   SheetContent,
   SheetTitle,
 } from '@/components/ui/sheet'
+import { CommandProvider } from '@/features/command/command-provider'
 
 import { SidebarNav } from './sidebar-nav'
 import { Topbar } from './topbar'
@@ -37,24 +38,29 @@ export function AppShell() {
   }, [location.pathname])
 
   return (
-    <div className="flex h-svh w-full overflow-hidden">
-      <aside className="hidden w-60 shrink-0 flex-col border-r bg-card p-3 md:flex">
-        <SidebarContent />
-      </aside>
+    // CommandProvider hosts the Cmd/Ctrl+K palette, global hotkeys and the
+    // reused "New issue" dialog; it lives here so it has workspace + router
+    // context and wraps the whole shell (topbar can trigger the palette).
+    <CommandProvider>
+      <div className="flex h-svh w-full overflow-hidden">
+        <aside className="hidden w-60 shrink-0 flex-col border-r bg-card p-3 md:flex">
+          <SidebarContent />
+        </aside>
 
-      <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
-        <SheetContent side="left" className="w-72 p-3">
-          <SheetTitle className="sr-only">Navigation</SheetTitle>
-          <SidebarContent onNavigate={() => setMobileNavOpen(false)} />
-        </SheetContent>
-      </Sheet>
+        <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
+          <SheetContent side="left" className="w-72 p-3">
+            <SheetTitle className="sr-only">Navigation</SheetTitle>
+            <SidebarContent onNavigate={() => setMobileNavOpen(false)} />
+          </SheetContent>
+        </Sheet>
 
-      <div className="flex min-w-0 flex-1 flex-col">
-        <Topbar onOpenMobileNav={() => setMobileNavOpen(true)} />
-        <main className="flex-1 overflow-y-auto">
-          <Outlet />
-        </main>
+        <div className="flex min-w-0 flex-1 flex-col">
+          <Topbar onOpenMobileNav={() => setMobileNavOpen(true)} />
+          <main className="flex-1 overflow-y-auto">
+            <Outlet />
+          </main>
+        </div>
       </div>
-    </div>
+    </CommandProvider>
   )
 }

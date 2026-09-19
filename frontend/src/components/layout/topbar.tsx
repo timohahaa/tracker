@@ -1,4 +1,4 @@
-import { LogOut, Menu } from 'lucide-react'
+import { LogOut, Menu, Search } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 
 import { ThemeToggle } from '@/components/theme-toggle'
@@ -15,6 +15,7 @@ import {
 import { useCurrentUser } from '@/features/auth/session-provider'
 import { useLogout } from '@/features/auth/use-logout'
 import { useCurrentWorkspace } from '@/features/auth/workspace-context'
+import { useCommands } from '@/features/command/command-provider'
 
 // Derives up-to-two-letter initials from a display name, falling back to the
 // email local part, then a generic glyph.
@@ -35,6 +36,7 @@ export function Topbar({ onOpenMobileNav }: TopbarProps) {
   const user = useCurrentUser()
   const navigate = useNavigate()
   const logout = useLogout()
+  const { openPalette } = useCommands()
 
   const displayName = user?.display_name || user?.email || 'Account'
   const email = user?.email ?? ''
@@ -61,6 +63,29 @@ export function Topbar({ onOpenMobileNav }: TopbarProps) {
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-medium">{slug}</p>
       </div>
+
+      <button
+        type="button"
+        onClick={openPalette}
+        className="hidden items-center gap-2 rounded-md border bg-background px-2.5 py-1.5 text-sm text-muted-foreground outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:ring-1 focus-visible:ring-ring sm:flex"
+        aria-label="Open command palette"
+      >
+        <Search className="h-4 w-4" />
+        <span>Search…</span>
+        <kbd className="ml-2 rounded border bg-muted px-1.5 py-0.5 font-mono text-xs">
+          ⌘K
+        </kbd>
+      </button>
+
+      <Button
+        variant="ghost"
+        size="icon"
+        className="sm:hidden"
+        onClick={openPalette}
+        aria-label="Open command palette"
+      >
+        <Search className="h-5 w-5" />
+      </Button>
 
       <ThemeToggle />
 

@@ -68,14 +68,38 @@ const DEFAULTS: CreateIssueValues = {
   due_date: '',
 }
 
+interface CreateIssueDialogProps {
+  defaultTeamId?: string
+  // Controlled mode: when `open`/`onOpenChange` are supplied the dialog's
+  // visibility is driven by the parent (used by the command palette and the `C`
+  // hotkey to open it without an inline trigger). Left undefined, the dialog
+  // manages its own state and renders the default "New issue" button.
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
+  // Whether to render the built-in trigger button. Defaults to true; the
+  // palette/hotkey path passes false.
+  showTrigger?: boolean
+}
+
 // "New issue" dialog. Team is required and drives the available statuses; status
 // defaults to the team's backlog status on the backend when left unset. On
 // success navigates to the created issue's detail page.
-export function CreateIssueDialog({ defaultTeamId }: { defaultTeamId?: string }) {
+export function CreateIssueDialog({
+  defaultTeamId,
+  open: openProp,
+  onOpenChange,
+  showTrigger = true,
+}: CreateIssueDialogProps) {
   const { id: workspaceID, slug } = useCurrentWorkspace()
   const navigate = useNavigate()
   const createIssue = useCreateIssue()
-  const [open, setOpen] = useState(false)
+  const [openState, setOpenState] = useState(false)
+  const isControlled = openProp !== undefined
+  const open = isControlled ? openProp : openState
+  const setOpen = (next: boolean) => {
+    if (!isControlled) setOpenState(next)
+    onOpenChange?.(next)
+  }
 
   const teamsQuery = useTeams(workspaceID)
   const projectsQuery = useProjectsList(workspaceID)
@@ -160,12 +184,14 @@ export function CreateIssueDialog({ defaultTeamId }: { defaultTeamId?: string })
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogTrigger asChild>
-        <Button>
-          <Plus className="h-4 w-4" />
-          New issue
-        </Button>
-      </DialogTrigger>
+      {showTrigger ? (
+        <DialogTrigger asChild>
+          <Button>
+            <Plus className="h-4 w-4" />
+            New issue
+          </Button>
+        </DialogTrigger>
+      ) : null}
       <DialogContent className="max-h-[90svh] overflow-y-auto sm:max-w-lg">
         <form onSubmit={handleSubmit(onSubmit)} noValidate>
           <DialogHeader>
