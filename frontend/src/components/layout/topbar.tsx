@@ -1,9 +1,19 @@
-import { Menu } from 'lucide-react'
+import { LogOut, Menu } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 
 import { ThemeToggle } from '@/components/theme-toggle'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { useCurrentUser } from '@/features/auth/session-provider'
+import { useLogout } from '@/features/auth/use-logout'
 import { useCurrentWorkspace } from '@/features/auth/workspace-context'
 
 // Derives up-to-two-letter initials from a display name, falling back to the
@@ -23,9 +33,18 @@ interface TopbarProps {
 export function Topbar({ onOpenMobileNav }: TopbarProps) {
   const { slug } = useCurrentWorkspace()
   const user = useCurrentUser()
+  const navigate = useNavigate()
+  const logout = useLogout()
 
   const displayName = user?.display_name || user?.email || 'Account'
   const email = user?.email ?? ''
+
+  const handleLogout = () => {
+    logout.mutate(
+      {},
+      { onSuccess: () => navigate('/login', { replace: true }) },
+    )
+  }
 
   return (
     <header className="flex h-14 shrink-0 items-center gap-3 border-b bg-background px-4">
@@ -45,19 +64,40 @@ export function Topbar({ onOpenMobileNav }: TopbarProps) {
 
       <ThemeToggle />
 
-      <div className="flex items-center gap-2">
-        <div className="hidden text-right leading-tight sm:block">
-          <p className="truncate text-sm font-medium">{displayName}</p>
-          {email && (
-            <p className="truncate text-xs text-muted-foreground">{email}</p>
-          )}
-        </div>
-        <Avatar className="h-8 w-8">
-          <AvatarFallback className="text-xs">
-            {initials(displayName)}
-          </AvatarFallback>
-        </Avatar>
-      </div>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button
+            type="button"
+            className="flex items-center gap-2 rounded-md px-1 py-1 outline-none transition-colors hover:bg-accent focus-visible:ring-1 focus-visible:ring-ring"
+            aria-label="Open account menu"
+          >
+            <div className="hidden text-right leading-tight sm:block">
+              <p className="truncate text-sm font-medium">{displayName}</p>
+              {email && (
+                <p className="truncate text-xs text-muted-foreground">{email}</p>
+              )}
+            </div>
+            <Avatar className="h-8 w-8">
+              <AvatarFallback className="text-xs">
+                {initials(displayName)}
+              </AvatarFallback>
+            </Avatar>
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-56">
+          <DropdownMenuLabel className="truncate font-normal">
+            {email || displayName}
+          </DropdownMenuLabel>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            onSelect={handleLogout}
+            disabled={logout.isPending}
+          >
+            <LogOut className="h-4 w-4" />
+            <span>{logout.isPending ? 'Logging out…' : 'Log out'}</span>
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
     </header>
   )
 }
