@@ -14,6 +14,13 @@ import { SessionProvider } from '@/features/auth/session-provider'
 const LoginPage = lazy(() => import('@/pages/login-page'))
 const RegisterPage = lazy(() => import('@/pages/register-page'))
 const WorkspaceHomePage = lazy(() => import('@/pages/workspace-home-page'))
+const SettingsLayout = lazy(() => import('@/pages/settings-layout'))
+const WorkspaceSettingsPage = lazy(
+  () => import('@/pages/workspace-settings-page'),
+)
+const WorkspaceMembersPage = lazy(
+  () => import('@/pages/workspace-members-page'),
+)
 const NotFoundPage = lazy(() => import('@/pages/not-found-page'))
 
 // Wraps a lazy page element in the shared Suspense fallback so route-level
@@ -59,6 +66,16 @@ export const router = createBrowserRouter([
         element: <ProtectedRoute />,
         children: [
           { index: true, element: lazyElement(WorkspaceHomePage) },
+          // Workspace Settings area (2.2). A layout route with sub-section tabs
+          // (General/Members); 2.7 adds GitLab + tokens as sibling children.
+          {
+            path: 'settings',
+            element: lazyElement(SettingsLayout),
+            children: [
+              { index: true, element: lazyElement(WorkspaceSettingsPage) },
+              { path: 'members', element: lazyElement(WorkspaceMembersPage) },
+            ],
+          },
           { path: '*', element: lazyElement(NotFoundPage) },
         ],
       },
