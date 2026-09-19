@@ -1,6 +1,7 @@
 .build/
 .agents/
 .cursor/
+.claude
 .env
 frontend/dist/
 docs/swagger/
